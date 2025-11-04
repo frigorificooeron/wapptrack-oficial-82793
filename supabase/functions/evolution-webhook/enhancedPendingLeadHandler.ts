@@ -149,11 +149,11 @@ export const handleEnhancedPendingLeadConversion = async (
               city: deviceData.city,
               screen_resolution: deviceData.screen_resolution,
               timezone: deviceData.timezone,
-              language: deviceData.language,
-              facebook_ad_id: deviceData.facebook_ad_id || webhookData.facebook_ad_id,
-              facebook_adset_id: deviceData.facebook_adset_id || webhookData.facebook_adset_id,
-              facebook_campaign_id: deviceData.facebook_campaign_id || webhookData.facebook_campaign_id
-            })
+              language: deviceData.language
+            }),
+            facebook_ad_id: webhookData.facebook_ad_id,
+            facebook_adset_id: webhookData.facebook_adset_id,
+            facebook_campaign_id: webhookData.facebook_campaign_id
           };
 
           const { error: insertError } = await supabase

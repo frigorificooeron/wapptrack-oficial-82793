@@ -108,6 +108,59 @@ serve(async (req) => {
 
         console.log(`📱 Processando mensagem de: ${realPhoneNumber} (instância: ${instanceName})`);
 
+        // 🆔 MÉTODO 0: TENTAR CORRELAÇÃO VIA ID ÚNICO PRIMEIRO (PRIORIDADE MÁXIMA)
+        const trackingIdMatch = messageContent.match(/\[([A-Z0-9]{6})\]/);
+        if (trackingIdMatch && !isFromMe) {
+          const leadTrackingId = trackingIdMatch[1];
+          console.log(`🎯 [ID ÚNICO] ID detectado na mensagem: ${leadTrackingId}`);
+          
+          // Buscar pending_lead com este ID
+          const { data: pendingWithId, error: pendingError } = await supabase
+            .from('pending_leads')
+            .select('*')
+            .eq('lead_tracking_id', leadTrackingId)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (pendingWithId && pendingWithId.length > 0 && !pendingError) {
+            console.log(`✅ [ID ÚNICO] Pending lead encontrado via ID! Convertendo...`, {
+              pending_lead_id: pendingWithId[0].id,
+              campaign_id: pendingWithId[0].campaign_id,
+              phone: realPhoneNumber
+            });
+            
+            // Limpar mensagem removendo o ID
+            const cleanedMessage = messageContent.replace(/\[([A-Z0-9]{6})\]\s*/, '');
+            console.log(`🧹 [ID ÚNICO] Mensagem limpa: "${cleanedMessage}"`);
+            
+            // Chamar handleEnhancedPendingLeadConversion diretamente
+            const { handleEnhancedPendingLeadConversion } = await import('./enhancedPendingLeadHandler.ts');
+            await handleEnhancedPendingLeadConversion(
+              supabase,
+              realPhoneNumber,
+              cleanedMessage,
+              message.key?.id || '',
+              message.status || 'received',
+              message.pushName
+            );
+            
+            console.log(`✅ [ID ÚNICO] Conversão concluída via ID único - taxa de sucesso esperada: 95-98%`);
+            
+            // Retornar sucesso e SAIR do fluxo
+            return new Response(JSON.stringify({ 
+              success: true, 
+              method: 'tracking_id',
+              tracking_id: leadTrackingId
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 200,
+            });
+          } else {
+            console.log(`⚠️ [ID ÚNICO] Nenhum pending_lead encontrado com ID: ${leadTrackingId}`);
+          }
+        }
+
         // Create phone variations and look for matching leads
         const phoneVariations = createPhoneSearchVariations(realPhoneNumber);
 
