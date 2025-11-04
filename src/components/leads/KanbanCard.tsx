@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Lead } from '@/types';
 import { MessageCircle, Eye, GripVertical } from 'lucide-react';
 import { formatBrazilianPhone } from '@/lib/phoneUtils';
@@ -45,11 +46,17 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
             className="cursor-move touch-none"
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-sm truncate">{lead.name}</h4>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {formatBrazilianPhone(lead.phone)}
-                </p>
+              <div className="flex items-start gap-2 flex-1 min-w-0">
+                <Avatar className="h-8 w-8 flex-shrink-0">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lead.name)}`} />
+                  <AvatarFallback className="text-xs">{lead.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-sm truncate">{lead.name}</h4>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {formatBrazilianPhone(lead.phone)}
+                  </p>
+                </div>
               </div>
               <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             </div>

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
   MessageSquare,
   DollarSign,
   LogOut,
-  Menu,
-  X,
-  Settings
+  Settings,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/context/AuthContext';
@@ -16,18 +16,32 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import type { CompanySettings, Theme } from '@/types';
 import { useSharedAccess } from '@/context/SharedAccessContext';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar
+} from "@/components/ui/sidebar";
 
 type MainLayoutProps = {
   children: React.ReactNode;
 };
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const AppSidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { open } = useSidebar();
+  const { isSharedMode, permissions: sharedPermissions, token } = useSharedAccess();
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
-  const { isSharedMode, permissions: sharedPermissions, token } = useSharedAccess();
 
   const navigation = [
     {
@@ -96,20 +110,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     }
   };
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
+  const getNavLinkHref = (href: string) => {
+    if (isSharedMode && token) {
+      return `/shared/${token}${href}`;
+    }
+    return href;
   };
 
-  const defaultCompanyBranding = {
-    logo: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=150&h=150&q=80",
-    title: "Sua Empresa",
-    subtitle: "Sistema de Marketing"
-  };
-
-  const companyBranding = {
-    logo: companySettings?.logo_url || defaultCompanyBranding.logo,
-    title: companySettings?.company_name || defaultCompanyBranding.title,
-    subtitle: companySettings?.company_subtitle || defaultCompanyBranding.subtitle
+  const checkPermission = (module: string) => {
+    if (!isSharedMode) return true;
+    return sharedPermissions?.[module]?.view === true;
   };
 
   const getUserDisplayName = () => {
@@ -121,194 +131,119 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return email ? email.charAt(0).toUpperCase() : 'U';
   };
 
-  const BrandingSection = ({ isMobile = false }: { isMobile?: boolean }) => (
-    <div className={cn(
-      "flex items-center space-x-3 px-4 py-4",
-      isMobile ? "justify-center" : ""
-    )}>
-      <div className="flex-shrink-0">
-        {isLoadingSettings && !isSharedMode ? (
-          <div className="h-12 w-12 rounded-full bg-muted animate-pulse border-2 border-primary/20" />
-        ) : (
-          <img
-            src={companyBranding.logo}
-            alt="Logo da empresa"
-            className="h-12 w-12 rounded-full object-cover border-2 border-primary/20"
-          />
-        )}
-      </div>
-      <div className="flex flex-col">
-        {isLoadingSettings && !isSharedMode ? (
-          <>
-            <div className="h-6 w-24 bg-muted animate-pulse rounded mb-1" />
-            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
-          </>
-        ) : (
-          <>
-            <span className="font-bold text-lg text-primary">{companyBranding.title}</span>
-            <span className="text-sm text-muted-foreground">{companyBranding.subtitle}</span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  const checkPermission = (module: string) => {
-    if (!isSharedMode) return true; // Full access in normal mode
-    return sharedPermissions?.[module]?.view === true; // Check view permission in shared mode
-  };
-
-  const getNavLinkHref = (href: string) => {
-    if (isSharedMode && token) {
-      // For shared mode, prepend /shared/:token to the href
-      return `/shared/${token}${href}`;
-    }
-    return href;
-  };
-
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Mobile menu button */}
-      <div className="lg:hidden flex items-center justify-between p-4 bg-card border-b border-border">
-        <BrandingSection isMobile />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleMobileMenu}
-          className="lg:hidden"
-        >
-          {isMobileMenuOpen ? <X /> : <Menu />}
-        </Button>
-      </div>
-
-      <div className="flex flex-1">
-        {/* Sidebar for desktop */}
-        <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-card border-r border-border">
-          <div className="flex flex-col flex-1 h-full">
-            <div className="flex items-center h-20 flex-shrink-0 border-b border-border">
-              <Link to={getNavLinkHref('/dashboard')} className="w-full">
-                <BrandingSection />
-              </Link>
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <div className={cn(
+          "flex items-center gap-3 px-2 py-3",
+          !open && "justify-center"
+        )}>
+          <div className="flex-shrink-0">
+            {isLoadingSettings && !isSharedMode ? (
+              <div className="h-10 w-10 rounded-full bg-muted animate-pulse border-2 border-primary/20" />
+            ) : (
+              <img
+                src={companySettings?.logo_url || "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=150&h=150&q=80"}
+                alt="Logo"
+                className="h-10 w-10 rounded-full object-cover border-2 border-primary/20"
+              />
+            )}
+          </div>
+          {open && (
+            <div className="flex flex-col min-w-0">
+              {isLoadingSettings && !isSharedMode ? (
+                <>
+                  <div className="h-5 w-20 bg-muted animate-pulse rounded mb-1" />
+                  <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-base text-primary truncate">
+                    {companySettings?.company_name || "Sua Empresa"}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {companySettings?.company_subtitle || "Sistema de Marketing"}
+                  </span>
+                </>
+              )}
             </div>
-            <nav className="flex-1 px-2 py-4 space-y-1">
+          )}
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
               {navigation.map((item) => (
                 checkPermission(item.module) && (
-                  <NavLink
-                    key={item.name}
-                    to={getNavLinkHref(item.href)}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center px-4 py-2 text-sm rounded-md transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-foreground hover:bg-muted"
-                      )
-                    }
-                  >
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </NavLink>
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton asChild isActive={location.pathname === item.href}>
+                      <NavLink to={getNavLinkHref(item.href)}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.name}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 )
               ))}
-            </nav>
-            {!isSharedMode && (
-              <div className="px-4 py-4 border-t border-border flex flex-col space-y-2">
-                <div className="flex items-center mb-4">
-                  <div className="flex-shrink-0 h-8 w-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground">
-                    {getUserInitial()}
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-foreground">
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      {!isSharedMode && (
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className={cn(
+                "flex items-center gap-3 px-2 py-2",
+                !open && "justify-center"
+              )}>
+                <div className="flex-shrink-0 h-8 w-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
+                  {getUserInitial()}
+                </div>
+                {open && (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
                       {getUserDisplayName()}
                     </p>
                   </div>
-                </div>
-                <Button 
-                  variant="outline" 
-                  className="flex justify-start" 
-                  onClick={logout}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sair
-                </Button>
+                )}
               </div>
-            )}
-          </div>
-        </div>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={logout}>
+                <LogOut className="h-4 w-4" />
+                <span>Sair</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
+    </Sidebar>
+  );
+};
 
-        {/* Mobile menu */}
-        {isMobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-50 bg-background flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b border-border">
-              <BrandingSection isMobile />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleMobileMenu}
-              >
-                <X />
-              </Button>
-            </div>
-            <div className="flex-1 p-4">
-              <nav className="space-y-4">
-                {navigation.map((item) => (
-                  checkPermission(item.module) && (
-                    <NavLink
-                      key={item.name}
-                      to={getNavLinkHref(item.href)}
-                      onClick={toggleMobileMenu}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex items-center px-4 py-3 text-base rounded-md transition-colors",
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "text-foreground hover:bg-muted"
-                        )
-                      }
-                    >
-                      <item.icon className="mr-3 h-5 w-5" />
-                      {item.name}
-                    </NavLink>
-                  )
-                ))}
-              </nav>
-            </div>
-            {!isSharedMode && (
-              <div className="p-4 border-t border-border">
-                <div className="flex items-center mb-4">
-                  <div className="flex-shrink-0 h-8 w-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground">
-                    {getUserInitial()}
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-foreground">
-                      {getUserDisplayName()}
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="outline" 
-                  className="w-full flex justify-center" 
-                  onClick={() => {
-                    logout();
-                    toggleMobileMenu();
-                  }}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sair
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const location = useLocation();
 
-        {/* Main content area */}
-        <main className="flex-1 lg:ml-64 py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <AppSidebar />
+        
+        <main className="flex-1 overflow-auto">
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+            <SidebarTrigger />
+          </header>
+          
+          <div className="container mx-auto py-6 px-4 lg:px-8">
             {children}
           </div>
         </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 

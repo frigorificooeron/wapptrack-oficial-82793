@@ -3,6 +3,7 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Eye, Trash2, ExternalLink } from "lucide-react";
 import { Lead } from '@/types';
 import { formatBrazilianPhone } from '@/lib/phoneUtils';
@@ -74,6 +75,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
                   aria-label="Selecionar todos"
                 />
               </TableHead>
+              <TableHead className="w-14">Foto</TableHead>
               <TableHead className="min-w-32">Campanha</TableHead>
               <TableHead className="min-w-32">Nome</TableHead>
               <TableHead className="w-36 min-w-36">Telefone</TableHead>
@@ -100,6 +102,12 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
                       onCheckedChange={() => onSelectLead(lead.id)}
                       aria-label={`Selecionar ${lead.name}`}
                     />
+                  </TableCell>
+                  <TableCell>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lead.name)}`} />
+                      <AvatarFallback>{lead.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
                   </TableCell>
                   <TableCell className="font-medium min-w-32">{lead.campaign}</TableCell>
                   <TableCell className="min-w-32">{lead.name}</TableCell>
