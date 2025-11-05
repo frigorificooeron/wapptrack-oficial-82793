@@ -57,6 +57,8 @@ export interface Lead {
   placement?: string;
   gclid?: string;
   fbclid?: string;
+  // 📸 FOTO DO PERFIL DO WHATSAPP
+  profile_picture_url?: string;
 }
 
 export interface Campaign {

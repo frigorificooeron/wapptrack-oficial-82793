@@ -105,7 +105,10 @@ const LeadsTable: React.FC<LeadsTableProps> = ({
                   </TableCell>
                   <TableCell>
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lead.name)}`} />
+                      <AvatarImage 
+                        src={lead.profile_picture_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lead.name)}`}
+                        alt={lead.name}
+                      />
                       <AvatarFallback>{lead.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   </TableCell>

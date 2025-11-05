@@ -132,6 +132,43 @@ export const handleDirectLead = async ({
     
     console.log(`📋 [DIRECT LEAD] UTMs finais:`, finalUtms);
 
+    // 📸 Buscar foto do perfil do WhatsApp
+    let profilePictureUrl = null;
+    try {
+      const cleanPhone = realPhoneNumber.replace('@s.whatsapp.net', '');
+      
+      const { data: instances } = await supabase
+        .from('whatsapp_instances')
+        .select('instance_name, base_url')
+        .eq('status', 'connected')
+        .limit(1);
+      
+      if (instances && instances.length > 0) {
+        const instance = instances[0];
+        const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
+        
+        const response = await fetch(
+          `${instance.base_url}/chat/fetchProfilePictureUrl/${instance.instance_name}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey,
+            },
+            body: JSON.stringify({ number: cleanPhone })
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          profilePictureUrl = data.profilePictureUrl || null;
+          console.log(`📸 Foto capturada para lead direto: ${profilePictureUrl}`);
+        }
+      }
+    } catch (photoError) {
+      console.error('⚠️ Erro ao buscar foto:', photoError);
+    }
+
     // 🆕 Preparar dados do lead
     const leadData: any = {
       name: getContactName(message),
@@ -141,6 +178,7 @@ export const handleDirectLead = async ({
       status: 'new',
       first_contact_date: new Date().toISOString(),
       last_message: message.message?.conversation || message.message?.extendedTextMessage?.text || 'Mensagem recebida',
+      profile_picture_url: profilePictureUrl,
       // 🆕 PRIORIZAR UTMs DA CAMPANHA (Facebook Ads), depois UTM_CLICKS, depois fallback
       utm_source: linkedCampaign?.utm_source || finalUtms.utm_source || 'whatsapp',
       utm_medium: linkedCampaign?.utm_medium || finalUtms.utm_medium || 'organic',

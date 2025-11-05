@@ -355,6 +355,7 @@ export type Database = {
           notes: string | null
           os: string | null
           phone: string
+          profile_picture_url: string | null
           screen_resolution: string | null
           status: string | null
           timezone: string | null
@@ -400,6 +401,7 @@ export type Database = {
           notes?: string | null
           os?: string | null
           phone: string
+          profile_picture_url?: string | null
           screen_resolution?: string | null
           status?: string | null
           timezone?: string | null
@@ -445,6 +447,7 @@ export type Database = {
           notes?: string | null
           os?: string | null
           phone?: string
+          profile_picture_url?: string | null
           screen_resolution?: string | null
           status?: string | null
           timezone?: string | null

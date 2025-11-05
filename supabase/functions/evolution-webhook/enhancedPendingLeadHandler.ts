@@ -59,6 +59,43 @@ export const handleEnhancedPendingLeadConversion = async (
         const matchedPendingLead = pendingByTracking;
         const messageTime = messageTimestamp ? new Date(messageTimestamp) : new Date();
         
+        // Buscar foto do perfil do WhatsApp
+        let profilePictureUrl = null;
+        try {
+          const cleanPhone = phone.replace('@s.whatsapp.net', '');
+          
+          const { data: instances } = await supabase
+            .from('whatsapp_instances')
+            .select('instance_name, base_url')
+            .eq('status', 'connected')
+            .limit(1);
+          
+          if (instances && instances.length > 0) {
+            const instance = instances[0];
+            const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
+            
+            const response = await fetch(
+              `${instance.base_url}/chat/fetchProfilePictureUrl/${instance.instance_name}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': apiKey,
+                },
+                body: JSON.stringify({ number: cleanPhone })
+              }
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              profilePictureUrl = data.profilePictureUrl || null;
+              console.log(`📸 Foto capturada na conversão: ${profilePictureUrl}`);
+            }
+          }
+        } catch (photoError) {
+          console.error('⚠️ Erro ao buscar foto:', photoError);
+        }
+
         // Buscar user_id da campanha
         let campaignUserId = null;
         if (matchedPendingLead.campaign_id) {
@@ -103,6 +140,7 @@ export const handleEnhancedPendingLeadConversion = async (
               evolution_message_id: messageId,
               evolution_status: status,
               lead_tracking_id: leadTrackingId,
+              profile_picture_url: profilePictureUrl,
               utm_source: matchedPendingLead.utm_source || existingLead[0].utm_source,
               utm_medium: matchedPendingLead.utm_medium || existingLead[0].utm_medium,
               utm_campaign: matchedPendingLead.utm_campaign || existingLead[0].utm_campaign,
@@ -138,6 +176,7 @@ export const handleEnhancedPendingLeadConversion = async (
             utm_campaign: matchedPendingLead.utm_campaign,
             utm_content: matchedPendingLead.utm_content,
             utm_term: matchedPendingLead.utm_term,
+            profile_picture_url: profilePictureUrl,
             ...(deviceData && {
               location: deviceData.location,
               ip_address: deviceData.ip_address,

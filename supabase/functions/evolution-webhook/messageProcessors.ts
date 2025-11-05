@@ -27,11 +27,57 @@ export const processClientMessage = async (params: {
   // Atualizar leads existentes com mensagem e data de contato
   for (const lead of matchedLeads) {
     try {
+      // Buscar foto do perfil do WhatsApp via Evolution API
+      let profilePictureUrl = lead.profile_picture_url;
+      
+      if (!profilePictureUrl) {
+        try {
+          // Extrair número sem @s.whatsapp.net
+          const cleanPhone = realPhoneNumber.replace('@s.whatsapp.net', '');
+          
+          // Buscar instância ativa para fazer a requisição
+          const { data: instances } = await supabase
+            .from('whatsapp_instances')
+            .select('instance_name, base_url')
+            .eq('status', 'connected')
+            .limit(1);
+          
+          if (instances && instances.length > 0) {
+            const instance = instances[0];
+            const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
+            
+            // Buscar foto do perfil via Evolution API
+            const response = await fetch(
+              `${instance.base_url}/chat/fetchProfilePictureUrl/${instance.instance_name}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': apiKey,
+                },
+                body: JSON.stringify({
+                  number: cleanPhone
+                })
+              }
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              profilePictureUrl = data.profilePictureUrl || null;
+              console.log(`📸 Foto do perfil capturada: ${profilePictureUrl}`);
+            }
+          }
+        } catch (photoError) {
+          console.error('⚠️ Erro ao buscar foto do perfil:', photoError);
+        }
+      }
+      
       const updateData: any = {
         last_contact_date: new Date().toISOString(),
         evolution_message_id: message.key?.id,
         evolution_status: message.status,
-        last_message: messageContent, // 🔥 ADICIONAR A MENSAGEM AQUI
+        last_message: messageContent,
+        profile_picture_url: profilePictureUrl,
       };
 
       // Se é a primeira mensagem do lead, definir como initial_message também

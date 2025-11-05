@@ -48,7 +48,10 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-start gap-2 flex-1 min-w-0">
                 <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lead.name)}`} />
+                  <AvatarImage 
+                    src={lead.profile_picture_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(lead.name)}`}
+                    alt={lead.name}
+                  />
                   <AvatarFallback className="text-xs">{lead.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">

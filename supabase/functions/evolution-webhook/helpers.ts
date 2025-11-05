@@ -24,3 +24,9 @@ export function getMessageContent(message: any): string {
 export function getContactName(message: any): string {
   return message.pushName || "Lead Via WhatsApp";
 }
+
+export function getProfilePictureUrl(message: any): string | null {
+  // A Evolution API retorna a foto do perfil em message.key.participant ou precisamos buscar
+  // Por enquanto, retornar null e capturar em uma função separada
+  return message.profilePictureUrl || null;
+}
