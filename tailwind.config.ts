@@ -87,6 +87,18 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				status: {
+					new: 'hsl(var(--status-new))',
+					'new-foreground': 'hsl(var(--status-new-foreground))',
+					contacted: 'hsl(var(--status-contacted))',
+					'contacted-foreground': 'hsl(var(--status-contacted-foreground))',
+					qualified: 'hsl(var(--status-qualified))',
+					'qualified-foreground': 'hsl(var(--status-qualified-foreground))',
+					converted: 'hsl(var(--status-converted))',
+					'converted-foreground': 'hsl(var(--status-converted-foreground))',
+					lost: 'hsl(var(--status-lost))',
+					'lost-foreground': 'hsl(var(--status-lost-foreground))',
 				}
 			},
 			borderRadius: {

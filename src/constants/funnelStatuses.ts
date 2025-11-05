@@ -7,35 +7,35 @@ export const FUNNEL_STATUSES = {
   new: {
     value: 'new',
     label: 'Novo',
-    color: 'bg-blue-500',
+    color: 'bg-status-new text-status-new-foreground',
     description: 'Lead recém capturado',
     order: 1
   },
   contacted: {
     value: 'contacted',
     label: 'Contatado',
-    color: 'bg-cyan-500',
+    color: 'bg-status-contacted text-status-contacted-foreground',
     description: 'Primeira interação realizada',
     order: 2
   },
   qualified: {
     value: 'qualified',
     label: 'Qualificado',
-    color: 'bg-purple-500',
+    color: 'bg-status-qualified text-status-qualified-foreground',
     description: 'Lead tem potencial de compra',
     order: 3
   },
   converted: {
     value: 'converted',
     label: 'Convertido',
-    color: 'bg-green-500',
+    color: 'bg-status-converted text-status-converted-foreground',
     description: 'Venda fechada com sucesso',
     order: 4
   },
   lost: {
     value: 'lost',
     label: 'Perdido',
-    color: 'bg-red-500',
+    color: 'bg-status-lost text-status-lost-foreground',
     description: 'Não converteu',
     order: 5
   }

@@ -45,6 +45,17 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 162 84% 39%;
+
+    --status-new: 217 91% 60%;
+    --status-new-foreground: 0 0% 100%;
+    --status-contacted: 189 94% 43%;
+    --status-contacted-foreground: 0 0% 100%;
+    --status-qualified: 271 81% 56%;
+    --status-qualified-foreground: 0 0% 100%;
+    --status-converted: 142 76% 36%;
+    --status-converted-foreground: 0 0% 100%;
+    --status-lost: 0 72% 51%;
+    --status-lost-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -84,6 +95,17 @@
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 12%;
     --sidebar-ring: 162 84% 45%;
+
+    --status-new: 217 91% 60%;
+    --status-new-foreground: 0 0% 100%;
+    --status-contacted: 189 94% 43%;
+    --status-contacted-foreground: 0 0% 100%;
+    --status-qualified: 271 81% 56%;
+    --status-qualified-foreground: 0 0% 100%;
+    --status-converted: 142 76% 36%;
+    --status-converted-foreground: 0 0% 100%;
+    --status-lost: 0 72% 51%;
+    --status-lost-foreground: 0 0% 100%;
   }
 }
 

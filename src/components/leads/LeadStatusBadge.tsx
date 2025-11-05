@@ -12,10 +12,9 @@ export const LeadStatusBadge = ({ status, className }: LeadStatusBadgeProps) => 
   
   return (
     <Badge 
-      variant="secondary"
       className={cn(
         config.color,
-        "text-white font-medium",
+        "font-medium border-0",
         className
       )}
       title={config.description}
