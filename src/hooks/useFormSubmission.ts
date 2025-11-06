@@ -126,11 +126,32 @@ export const useFormSubmission = (
       
       console.log('✅ [FORM SUBMISSION] trackRedirect executado com sucesso:', result);
       
-      // 🆔 Gerar ID único e incluir na mensagem (INVISÍVEL)
+      // 🆔 Gerar ID único e token invisível
       const leadTrackingId = generateTrackingId();
       const invisibleToken = encodeInvisibleToken(leadTrackingId);
       console.log('🆔 [FORM] ID único gerado:', leadTrackingId);
       console.log('👻 [FORM] Token invisível gerado (caracteres zero-width)');
+
+      // 💾 Salvar token no banco de dados
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { error: tokenError } = await supabase
+          .from('campaign_tokens')
+          .insert({
+            token: invisibleToken,
+            campaign_id: campaignId,
+            lead_tracking_id: leadTrackingId,
+            status: 'active'
+          });
+        
+        if (tokenError) {
+          console.error('❌ [FORM] Erro ao salvar token:', tokenError);
+        } else {
+          console.log('✅ [FORM] Token salvo no banco:', { leadTrackingId, campaignId });
+        }
+      } catch (error) {
+        console.error('❌ [FORM] Erro ao salvar token:', error);
+      }
 
       // Build WhatsApp URL with custom message + invisible token
       let whatsappUrl = `https://wa.me/${campaign.whatsapp_number}`;

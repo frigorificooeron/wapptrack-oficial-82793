@@ -25,10 +25,50 @@ export const handleEnhancedPendingLeadConversion = async (
   try {
     // 🆔 MÉTODO 0: BUSCAR POR TOKEN INVISÍVEL (100% PRECISÃO)
     console.log('👻 [ENHANCED PENDING] ===== MÉTODO 0: BUSCA POR TOKEN INVISÍVEL =====');
-    const leadTrackingId = invisibleToken || null;
+    
+    let leadTrackingId = null;
+    let campaignIdFromToken = null;
+
+    if (invisibleToken) {
+      console.log('👻 [METHOD 0] Token invisível detectado, buscando no banco...');
+      
+      // Buscar token no banco de dados
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('campaign_tokens')
+        .select('*')
+        .eq('token', invisibleToken)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (tokenError) {
+        console.error('❌ [METHOD 0] Erro ao buscar token:', tokenError);
+      }
+
+      if (tokenData) {
+        leadTrackingId = tokenData.lead_tracking_id;
+        campaignIdFromToken = tokenData.campaign_id;
+        console.log('✅ [METHOD 0] Token encontrado no banco:', {
+          leadTrackingId,
+          campaignId: campaignIdFromToken,
+          created_at: tokenData.created_at
+        });
+
+        // Marcar token como usado
+        await supabase
+          .from('campaign_tokens')
+          .update({ 
+            status: 'used', 
+            used_at: new Date().toISOString(),
+            phone: phone 
+          })
+          .eq('id', tokenData.id);
+      } else {
+        console.log('⚠️ [METHOD 0] Token não encontrado no banco ou já usado');
+      }
+    }
 
     if (leadTrackingId) {
-      console.log('🎯 [METHOD 0] ID único encontrado na mensagem:', leadTrackingId);
+      console.log('🎯 [METHOD 0] ID único encontrado:', leadTrackingId);
       
       const { data: pendingByTracking, error: trackingError } = await supabase
         .from('pending_leads')

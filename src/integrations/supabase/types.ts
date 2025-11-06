@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_tokens: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          lead_tracking_id: string
+          phone: string | null
+          status: string | null
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          lead_tracking_id: string
+          phone?: string | null
+          status?: string | null
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          lead_tracking_id?: string
+          phone?: string | null
+          status?: string | null
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       campaigns: {
         Row: {
           active: boolean | null
