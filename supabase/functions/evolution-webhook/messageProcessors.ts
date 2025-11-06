@@ -1,6 +1,82 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 
+// 🔐 Decodifica token invisível de caracteres zero-width
+function decodeInvisibleToken(text: string): string | null {
+  const reverseMap: Record<string, string> = {
+    '\u200B': '0',
+    '\u200C': '1',
+    '\u200D': '2',
+    '\u200B\u200B': '3',
+    '\u200B\u200C': '4',
+    '\u200B\u200D': '5',
+    '\u200C\u200B': '6',
+    '\u200C\u200C': '7',
+    '\u200C\u200D': '8',
+    '\u200D\u200B': '9',
+    '\u200D\u200C': 'A',
+    '\u200D\u200D': 'B',
+    '\u200B\u200B\u200B': 'C',
+    '\u200B\u200B\u200C': 'D',
+    '\u200B\u200B\u200D': 'E',
+    '\u200B\u200C\u200B': 'F',
+    '\u200B\u200C\u200C': 'G',
+    '\u200B\u200C\u200D': 'H',
+    '\u200B\u200D\u200B': 'I',
+    '\u200B\u200D\u200C': 'J',
+    '\u200B\u200D\u200D': 'K',
+    '\u200C\u200B\u200B': 'L',
+    '\u200C\u200B\u200C': 'M',
+    '\u200C\u200B\u200D': 'N',
+    '\u200C\u200C\u200B': 'O',
+    '\u200C\u200C\u200C': 'P',
+    '\u200C\u200C\u200D': 'Q',
+    '\u200C\u200D\u200B': 'R',
+    '\u200C\u200D\u200C': 'S',
+    '\u200C\u200D\u200D': 'T',
+    '\u200D\u200B\u200B': 'U',
+    '\u200D\u200B\u200C': 'V',
+    '\u200D\u200B\u200D': 'W',
+    '\u200D\u200C\u200B': 'X',
+    '\u200D\u200C\u200C': 'Y',
+    '\u200D\u200D\u200B': 'Z'
+  };
+  
+  const zeroWidthChars = text.match(/[\u200B\u200C\u200D]+/g);
+  if (!zeroWidthChars) return null;
+  
+  let decoded = '';
+  let i = 0;
+  const fullZeroWidth = zeroWidthChars.join('');
+  
+  while (i < fullZeroWidth.length) {
+    const triple = fullZeroWidth.slice(i, i + 3);
+    if (reverseMap[triple]) {
+      decoded += reverseMap[triple];
+      i += 3;
+      continue;
+    }
+    
+    const double = fullZeroWidth.slice(i, i + 2);
+    if (reverseMap[double]) {
+      decoded += reverseMap[double];
+      i += 2;
+      continue;
+    }
+    
+    const single = fullZeroWidth[i];
+    if (reverseMap[single]) {
+      decoded += reverseMap[single];
+      i += 1;
+      continue;
+    }
+    
+    i++;
+  }
+  
+  return decoded || null;
+}
+
 // ✅ FUNÇÃO ATUALIZADA PARA PROCESSAR MENSAGENS DE CLIENTE (AGORA SALVA A MENSAGEM)
 export const processClientMessage = async (params: {
   supabase: any;
@@ -13,6 +89,12 @@ export const processClientMessage = async (params: {
   
   console.log(`📱 Processing client message from: ${realPhoneNumber}`);
   
+  // 👻 Tentar decodificar token invisível
+  const invisibleToken = decodeInvisibleToken(messageContent);
+  if (invisibleToken) {
+    console.log(`👻 Token invisível detectado: ${invisibleToken}`);
+  }
+  
   // Primeiro, tentar conversão de pending_lead (fluxo formulário)
   const { handlePendingLeadConversion } = await import('./pendingLeadHandler.ts');
   await handlePendingLeadConversion(
@@ -21,7 +103,8 @@ export const processClientMessage = async (params: {
     messageContent,
     message.key?.id || '',
     message.status || 'received',
-    message.pushName
+    message.pushName,
+    invisibleToken || undefined
   );
   
   // Atualizar leads existentes com mensagem e data de contato

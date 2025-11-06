@@ -1,8 +1,12 @@
 import { getDeviceDataByPhone } from './deviceDataHandler.ts';
 import { handleEnhancedPendingLeadConversion } from './enhancedPendingLeadHandler.ts';
 
-export const handlePendingLeadConversion = async (supabase: any, phone: string, messageText: string, messageId: string, status: string, contactName?: string) => {
+export const handlePendingLeadConversion = async (supabase: any, phone: string, messageText: string, messageId: string, status: string, contactName?: string, invisibleToken?: string) => {
   console.log(`🔄 [PENDING LEAD] handlePendingLeadConversion - Redirecionando para versão melhorada`);
+  
+  if (invisibleToken) {
+    console.log(`👻 [PENDING LEAD] Token invisível recebido: ${invisibleToken}`);
+  }
   
   // 🆕 USAR O HANDLER MELHORADO COM MÉTODOS 1 + 2
   return await handleEnhancedPendingLeadConversion(
@@ -11,7 +15,8 @@ export const handlePendingLeadConversion = async (supabase: any, phone: string, 
     messageText, 
     messageId, 
     status, 
-    contactName
+    contactName,
+    invisibleToken
   );
 };
 

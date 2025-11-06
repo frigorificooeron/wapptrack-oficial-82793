@@ -6,6 +6,7 @@ import { Lead } from '@/types';
 import { Campaign } from '@/types';
 import { useEnhancedPixelTracking } from './useEnhancedPixelTracking';
 import { collectUrlParameters } from '@/lib/dataCollection';
+import { encodeInvisibleToken } from '@/lib/utils';
 
 export const useFormSubmission = (
   campaignId: string | null,
@@ -125,11 +126,13 @@ export const useFormSubmission = (
       
       console.log('✅ [FORM SUBMISSION] trackRedirect executado com sucesso:', result);
       
-      // 🆔 Gerar ID único e incluir na mensagem
+      // 🆔 Gerar ID único e incluir na mensagem (INVISÍVEL)
       const leadTrackingId = generateTrackingId();
+      const invisibleToken = encodeInvisibleToken(leadTrackingId);
       console.log('🆔 [FORM] ID único gerado:', leadTrackingId);
+      console.log('👻 [FORM] Token invisível gerado (caracteres zero-width)');
 
-      // Build WhatsApp URL with custom message + tracking ID
+      // Build WhatsApp URL with custom message + invisible token
       let whatsappUrl = `https://wa.me/${campaign.whatsapp_number}`;
       
       if (campaign.custom_message) {
@@ -139,9 +142,9 @@ export const useFormSubmission = (
         }
         message = message.replace(/\{telefone\}/gi, phone);
         
-        // 🆔 Incluir ID único no início da mensagem
-        const messageWithId = `[${leadTrackingId}] ${message}`;
-        const encodedMessage = encodeURIComponent(messageWithId);
+        // 🆔 Incluir token invisível no início da mensagem
+        const messageWithToken = `${invisibleToken}${message}`;
+        const encodedMessage = encodeURIComponent(messageWithToken);
         whatsappUrl += `?text=${encodedMessage}`;
       }
       

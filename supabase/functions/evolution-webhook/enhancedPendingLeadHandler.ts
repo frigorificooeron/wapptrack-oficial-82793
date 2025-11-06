@@ -10,23 +10,22 @@ export const handleEnhancedPendingLeadConversion = async (
   messageId: string, 
   status: string, 
   contactName?: string,
-  messageTimestamp?: string
+  invisibleToken?: string
 ) => {
-  console.log(`🔄 [ENHANCED PENDING] ===== INICIANDO CONVERSÃO MELHORADA COM ID ÚNICO + CTWA =====`);
+  console.log(`🔄 [ENHANCED PENDING] ===== INICIANDO CONVERSÃO MELHORADA COM TOKEN INVISÍVEL + CTWA =====`);
   console.log(`🔄 [ENHANCED PENDING] Parâmetros recebidos:`, {
     phone,
     messageText: messageText?.substring(0, 100),
     messageId,
     status,
     contactName,
-    messageTimestamp
+    invisibleToken
   });
   
   try {
-    // 🆔 MÉTODO 0: BUSCAR POR ID ÚNICO NA MENSAGEM (100% PRECISÃO)
-    console.log('🆔 [ENHANCED PENDING] ===== MÉTODO 0: BUSCA POR ID ÚNICO =====');
-    const trackingIdMatch = messageText?.match(/\[([A-Z0-9]{6})\]/);
-    const leadTrackingId = trackingIdMatch ? trackingIdMatch[1] : null;
+    // 🆔 MÉTODO 0: BUSCAR POR TOKEN INVISÍVEL (100% PRECISÃO)
+    console.log('👻 [ENHANCED PENDING] ===== MÉTODO 0: BUSCA POR TOKEN INVISÍVEL =====');
+    const leadTrackingId = invisibleToken || null;
 
     if (leadTrackingId) {
       console.log('🎯 [METHOD 0] ID único encontrado na mensagem:', leadTrackingId);
@@ -57,7 +56,7 @@ export const handleEnhancedPendingLeadConversion = async (
         
         // Usar o pending_lead encontrado e continuar com o fluxo normal
         const matchedPendingLead = pendingByTracking;
-        const messageTime = messageTimestamp ? new Date(messageTimestamp) : new Date();
+        const messageTime = new Date();
         
         // Buscar foto do perfil do WhatsApp
         let profilePictureUrl = null;
@@ -238,8 +237,7 @@ export const handleEnhancedPendingLeadConversion = async (
       messageText,
       messageId,
       status,
-      contactName,
-      messageTimestamp
+      contactName
     );
 
     if (ctwaCorrelationResult) {
@@ -250,7 +248,7 @@ export const handleEnhancedPendingLeadConversion = async (
     console.log('ℹ️ [ENHANCED PENDING] Correlação CTWA não encontrou match, tentando métodos tradicionais...');
 
     // Continue with existing methods if CTWA correlation fails
-    const messageTime = messageTimestamp ? new Date(messageTimestamp) : new Date();
+    const messageTime = new Date();
     const correlationWindow = 60 * 60 * 1000; // 🆕 60 minutos (aumentado de 5 para melhor rastreamento)
     const windowStart = new Date(messageTime.getTime() - correlationWindow);
     
