@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.facebook-conversions]
 verify_jwt = false
+
+[functions.redirect-handler]
+verify_jwt = false

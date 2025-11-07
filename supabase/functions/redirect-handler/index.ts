@@ -1,0 +1,200 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+// Zero-Width Unicode characters for invisible token encoding
+const ZERO_WIDTH_CHARS = [
+  '\u200B', // Zero Width Space
+  '\u200C', // Zero Width Non-Joiner
+  '\u200D', // Zero Width Joiner
+  '\uFEFF'  // Zero Width No-Break Space
+];
+
+function encodeInvisibleToken(trackingId: string): string {
+  let encoded = '';
+  for (const char of trackingId) {
+    const charCode = char.charCodeAt(0);
+    const binary = charCode.toString(2).padStart(8, '0');
+    for (const bit of binary) {
+      encoded += bit === '0' ? ZERO_WIDTH_CHARS[0] : ZERO_WIDTH_CHARS[1];
+    }
+  }
+  return encoded;
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const trackingId = url.searchParams.get('t');
+    const campaignId = url.searchParams.get('id');
+
+    console.log('📍 [REDIRECT] Processando redirect:', { trackingId, campaignId });
+
+    if (!trackingId || !campaignId) {
+      return new Response(
+        JSON.stringify({ error: 'Missing trackingId or campaignId' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Capturar dados da requisição
+    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+
+    // Capturar UTMs e parâmetros de anúncios
+    const utmSource = url.searchParams.get('utm_source');
+    const utmMedium = url.searchParams.get('utm_medium');
+    const utmCampaign = url.searchParams.get('utm_campaign');
+    const utmContent = url.searchParams.get('utm_content');
+    const utmTerm = url.searchParams.get('utm_term');
+    const fbclid = url.searchParams.get('fbclid');
+    const gclid = url.searchParams.get('gclid');
+    const ctwaClid = url.searchParams.get('ctwa_clid');
+    const sourceUrl = url.searchParams.get('source_url') || req.headers.get('referer');
+    const sourceId = url.searchParams.get('source_id');
+
+    // IDs de anúncios do Facebook
+    const facebookAdId = url.searchParams.get('ad_id') || url.searchParams.get('facebook_ad_id');
+    const facebookAdsetId = url.searchParams.get('adset_id') || url.searchParams.get('facebook_adset_id');
+    const facebookCampaignId = url.searchParams.get('campaign_id') || url.searchParams.get('facebook_campaign_id');
+
+    // Gerar token invisível
+    const invisibleToken = encodeInvisibleToken(trackingId);
+
+    console.log('🔍 [REDIRECT] Dados capturados:', {
+      ipAddress,
+      userAgent: userAgent.substring(0, 50),
+      utmSource,
+      fbclid,
+      ctwaClid
+    });
+
+    // Inicializar Supabase
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Salvar dados do clique em campaign_clicks
+    const { data: clickData, error: clickError } = await supabase
+      .from('campaign_clicks')
+      .insert({
+        token: invisibleToken,
+        campaign_id: campaignId,
+        tracking_id: trackingId,
+        utm_source: utmSource,
+        utm_medium: utmMedium,
+        utm_campaign: utmCampaign,
+        utm_content: utmContent,
+        utm_term: utmTerm,
+        fbclid: fbclid,
+        gclid: gclid,
+        ctwa_clid: ctwaClid,
+        facebook_ad_id: facebookAdId,
+        facebook_adset_id: facebookAdsetId,
+        facebook_campaign_id: facebookCampaignId,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        source_url: sourceUrl,
+        source_id: sourceId
+      })
+      .select()
+      .single();
+
+    if (clickError) {
+      console.error('❌ [REDIRECT] Erro ao salvar clique:', clickError);
+    } else {
+      console.log('✅ [REDIRECT] Clique salvo:', clickData?.id);
+    }
+
+    // Buscar dados da campanha
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      console.error('❌ [REDIRECT] Campanha não encontrada:', campaignError);
+      return new Response(
+        JSON.stringify({ error: 'Campaign not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Disparar evento PageView via CAPI se habilitado
+    if (campaign.conversion_api_enabled && campaign.pixel_id && campaign.facebook_access_token) {
+      console.log('📊 [REDIRECT] Disparando PageView via CAPI...');
+      
+      try {
+        const capiResponse = await fetch(`${SUPABASE_URL}/functions/v1/facebook-conversions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            pixelId: campaign.pixel_id,
+            accessToken: campaign.facebook_access_token,
+            eventName: 'PageView',
+            userData: {
+              clientIp: ipAddress,
+              userAgent: userAgent,
+              fbc: fbclid ? `fb.1.${Date.now()}.${fbclid}` : undefined
+            },
+            customData: {
+              source_url: sourceUrl || url.toString(),
+              campaign_id: campaignId,
+              tracking_id: trackingId
+            }
+          })
+        });
+
+        if (capiResponse.ok) {
+          console.log('✅ [REDIRECT] PageView enviado via CAPI');
+        } else {
+          const errorText = await capiResponse.text();
+          console.error('❌ [REDIRECT] Erro ao enviar PageView via CAPI:', errorText);
+        }
+      } catch (error) {
+        console.error('❌ [REDIRECT] Exceção ao enviar PageView via CAPI:', error);
+      }
+    }
+
+    // Construir URL do WhatsApp com token invisível
+    let whatsappUrl = `https://api.whatsapp.com/send?phone=${campaign.whatsapp_number}`;
+    
+    if (campaign.custom_message) {
+      const messageWithToken = `${invisibleToken}${campaign.custom_message}`;
+      whatsappUrl += `&text=${encodeURIComponent(messageWithToken)}`;
+    } else {
+      whatsappUrl += `&text=${encodeURIComponent(invisibleToken + 'Olá! Vim através do anúncio.')}`;
+    }
+
+    console.log('↗️ [REDIRECT] Redirecionando para WhatsApp');
+
+    // Redirecionar para WhatsApp (302 redirect)
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        'Location': whatsappUrl
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [REDIRECT] Erro:', error);
+    return new Response(
+      JSON.stringify({ error: (error as Error)?.message || 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

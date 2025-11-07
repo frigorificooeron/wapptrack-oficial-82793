@@ -1,6 +1,12 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 
+// Limpar caracteres invisíveis do texto (nova função)
+export function cleanMessageFromInvisibleToken(message: string): string {
+  // Remove todos os caracteres zero-width
+  return message.replace(/[\u200B\u200C\u200D\uFEFF]+/g, '');
+}
+
 // 🔐 Decodifica token invisível de caracteres zero-width
 function decodeInvisibleToken(text: string): string | null {
   const reverseMap: Record<string, string> = {
@@ -155,17 +161,20 @@ export const processClientMessage = async (params: {
         }
       }
       
+      // Limpar mensagem de tokens invisíveis antes de salvar
+      const cleanedMessage = cleanMessageFromInvisibleToken(messageContent);
+      
       const updateData: any = {
         last_contact_date: new Date().toISOString(),
         evolution_message_id: message.key?.id,
         evolution_status: message.status,
-        last_message: messageContent,
+        last_message: cleanedMessage,
         profile_picture_url: profilePictureUrl,
       };
 
       // Se é a primeira mensagem do lead, definir como initial_message também
       if (!lead.initial_message) {
-        updateData.initial_message = `Primeira mensagem: ${messageContent}`;
+        updateData.initial_message = `Primeira mensagem: ${cleanedMessage}`;
       }
 
       const { error: updateError } = await supabase
@@ -176,15 +185,15 @@ export const processClientMessage = async (params: {
       if (updateError) {
         console.error(`❌ Error updating lead ${lead.id}:`, updateError);
       } else {
-        console.log(`✅ Updated lead ${lead.id} with message: ${messageContent.substring(0, 50)}...`);
+        console.log(`✅ Updated lead ${lead.id} with message: ${cleanedMessage.substring(0, 50)}...`);
       }
 
-      // Salvar mensagem no histórico de chat
+      // Salvar mensagem no histórico de chat (mensagem limpa)
       const { error: messageError } = await supabase
         .from('lead_messages')
         .insert({
           lead_id: lead.id,
-          message_text: messageContent,
+          message_text: cleanedMessage,
           is_from_me: false,
           whatsapp_message_id: message.key?.id,
           instance_name: message.key?.remoteJid?.split('@')[0] || null,

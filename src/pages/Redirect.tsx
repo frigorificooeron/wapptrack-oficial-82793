@@ -17,6 +17,7 @@ const Redirect = () => {
   const [loading, setLoading] = useState(false);
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [errorState, setErrorState] = useState<string | null>(null);
   const redirectExecuted = useRef(false);
 
   const {
@@ -24,9 +25,55 @@ const Redirect = () => {
     isLoading,
     error,
     companyBranding,
-    handleFormSubmit,
-    handleDirectWhatsAppRedirect
+    handleFormSubmit
   } = useCampaignData(campaignId, debug);
+
+  const handleDirectWhatsAppRedirect = async () => {
+    if (!campaign || redirectExecuted.current || !campaignId) return;
+    
+    redirectExecuted.current = true;
+    console.log('🔄 [REDIRECT] Iniciando redirecionamento SERVER-SIDE...');
+    
+    setShowLoadingScreen(true);
+    
+    // Simular carregamento por 1 segundo
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    try {
+      // Gerar tracking ID único
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let trackingId = '';
+      for (let i = 0; i < 6; i++) {
+        trackingId += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      // Coletar UTMs da URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const utmParams = new URLSearchParams();
+      
+      // Copiar todos os parâmetros UTM e de ads
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 
+       'fbclid', 'gclid', 'ctwa_clid', 'source_url', 'source_id',
+       'ad_id', 'adset_id', 'campaign_id'].forEach(param => {
+        const value = urlParams.get(param);
+        if (value) utmParams.set(param, value);
+      });
+
+      // Construir URL do redirect handler
+      const SUPABASE_URL = 'https://bwicygxyhkdgrypqrijo.supabase.co';
+      const redirectUrl = `${SUPABASE_URL}/functions/v1/redirect-handler?t=${trackingId}&id=${campaignId}&${utmParams.toString()}`;
+      
+      console.log('↗️ [REDIRECT] Redirecionando para:', redirectUrl);
+      
+      // Redirecionar (o edge function fará o resto)
+      window.location.href = redirectUrl;
+      
+    } catch (err) {
+      console.error('❌ [REDIRECT] Erro no redirecionamento:', err);
+      setErrorState('Erro ao processar redirecionamento. Por favor, tente novamente.');
+      setShowLoadingScreen(false);
+    }
+  };
 
   useEffect(() => {
     // Handle direct WhatsApp redirect - só executar uma vez quando a campanha for carregada
@@ -35,29 +82,7 @@ const Redirect = () => {
         !isLoading && 
         !redirectExecuted.current) {
       
-      redirectExecuted.current = true;
-      console.log('🚀 [REDIRECT] Iniciando redirecionamento WhatsApp direto para campanha:', campaign.name);
-      setShowLoadingScreen(true);
-      
-      // Start loading animation
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 100 / 30; // 30 frames over 3 seconds
-        setLoadingProgress(Math.min(progress, 100));
-      }, 100);
-
-      // Redirect after 3 seconds
-      setTimeout(async () => {
-        clearInterval(interval);
-        try {
-          console.log('🔄 [REDIRECT] Executando redirecionamento WhatsApp direto...');
-          await handleDirectWhatsAppRedirect(campaign);
-        } catch (err) {
-          console.error('❌ [REDIRECT] Erro no redirecionamento direto:', err);
-          setShowLoadingScreen(false);
-          redirectExecuted.current = false;
-        }
-      }, 3000);
+      handleDirectWhatsAppRedirect();
     }
   }, [campaign, isLoading, handleDirectWhatsAppRedirect]);
 
@@ -91,7 +116,9 @@ const Redirect = () => {
     return <LoadingScreen progress={loadingProgress} />;
   }
 
-  if (error) {
+  const displayError = error || errorState;
+  
+  if (displayError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <Card className="w-full max-w-md">
@@ -99,7 +126,7 @@ const Redirect = () => {
             <CardTitle>Erro</CardTitle>
             <CardDescription>Ocorreu um problema ao processar seu redirecionamento</CardDescription>
           </CardHeader>
-          <CardContent>{error}</CardContent>
+          <CardContent>{displayError}</CardContent>
           <CardFooter>
             <Button onClick={() => window.location.href = '/'} className="w-full">
               Voltar ao Início

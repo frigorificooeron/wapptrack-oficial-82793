@@ -14,6 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_clicks: {
+        Row: {
+          campaign_id: string
+          clicked_at: string | null
+          converted: boolean | null
+          converted_at: string | null
+          created_at: string | null
+          ctwa_clid: string | null
+          device_info: Json | null
+          facebook_ad_id: string | null
+          facebook_adset_id: string | null
+          facebook_campaign_id: string | null
+          fbclid: string | null
+          gclid: string | null
+          id: string
+          ip_address: string | null
+          language: string | null
+          lead_id: string | null
+          screen_resolution: string | null
+          source_id: string | null
+          source_url: string | null
+          timezone: string | null
+          token: string
+          tracking_id: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          campaign_id: string
+          clicked_at?: string | null
+          converted?: boolean | null
+          converted_at?: string | null
+          created_at?: string | null
+          ctwa_clid?: string | null
+          device_info?: Json | null
+          facebook_ad_id?: string | null
+          facebook_adset_id?: string | null
+          facebook_campaign_id?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_address?: string | null
+          language?: string | null
+          lead_id?: string | null
+          screen_resolution?: string | null
+          source_id?: string | null
+          source_url?: string | null
+          timezone?: string | null
+          token: string
+          tracking_id: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          clicked_at?: string | null
+          converted?: boolean | null
+          converted_at?: string | null
+          created_at?: string | null
+          ctwa_clid?: string | null
+          device_info?: Json | null
+          facebook_ad_id?: string | null
+          facebook_adset_id?: string | null
+          facebook_campaign_id?: string | null
+          fbclid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_address?: string | null
+          language?: string | null
+          lead_id?: string | null
+          screen_resolution?: string | null
+          source_id?: string | null
+          source_url?: string | null
+          timezone?: string | null
+          token?: string
+          tracking_id?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: []
+      }
       campaign_tokens: {
         Row: {
           campaign_id: string
