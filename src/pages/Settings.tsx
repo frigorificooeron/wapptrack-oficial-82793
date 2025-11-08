@@ -5,6 +5,7 @@ import MainLayout from '@/components/MainLayout';
 import CompanySettings from '@/components/settings/CompanySettings';
 import ThemeSettings from '@/components/settings/ThemeSettings';
 import MultipleInstancesSettings from '@/components/settings/MultipleInstancesSettings';
+import FacebookMetaSettings from '@/components/settings/FacebookMetaSettings';
 import { useSettings } from '@/hooks/useSettings';
 
 const Settings = () => {
@@ -40,6 +41,8 @@ const Settings = () => {
             theme={formData.theme}
             onThemeChange={handleThemeChange}
           />
+
+          <FacebookMetaSettings />
 
           <MultipleInstancesSettings />
 

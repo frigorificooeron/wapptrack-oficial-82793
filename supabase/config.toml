@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.redirect-handler]
 verify_jwt = false
+
+[functions.facebook-oauth-callback]
+verify_jwt = true
