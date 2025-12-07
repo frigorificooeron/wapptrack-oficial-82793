@@ -250,6 +250,8 @@ export type Database = {
           company_name: string | null
           company_subtitle: string | null
           created_at: string
+          facebook_access_token: string | null
+          facebook_pixel_id: string | null
           id: string
           logo_url: string | null
           theme: string | null
@@ -260,6 +262,8 @@ export type Database = {
           company_name?: string | null
           company_subtitle?: string | null
           created_at?: string
+          facebook_access_token?: string | null
+          facebook_pixel_id?: string | null
           id?: string
           logo_url?: string | null
           theme?: string | null
@@ -270,6 +274,8 @@ export type Database = {
           company_name?: string | null
           company_subtitle?: string | null
           created_at?: string
+          facebook_access_token?: string | null
+          facebook_pixel_id?: string | null
           id?: string
           logo_url?: string | null
           theme?: string | null
