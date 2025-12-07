@@ -18,10 +18,24 @@ export default function FacebookMetaSettings() {
   const [pixels, setPixels] = useState<FacebookPixel[]>([]);
   const [selectedPixel, setSelectedPixel] = useState<string>('');
   const [accessToken, setAccessToken] = useState<string>('');
+  const [appId, setAppId] = useState<string>('');
 
   useEffect(() => {
+    fetchAppId();
     checkConnection();
   }, []);
+
+  const fetchAppId = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('facebook-app-id');
+      if (error) throw error;
+      if (data?.appId) {
+        setAppId(data.appId);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar App ID:', error);
+    }
+  };
 
   const checkConnection = async () => {
     setLoading(true);
@@ -65,9 +79,8 @@ export default function FacebookMetaSettings() {
   };
 
   const handleConnect = () => {
-    const appId = import.meta.env.VITE_FACEBOOK_APP_ID;
     if (!appId) {
-      toast.error('Facebook App ID não configurado');
+      toast.error('Facebook App ID não configurado. Configure nas secrets do Supabase.');
       return;
     }
 
