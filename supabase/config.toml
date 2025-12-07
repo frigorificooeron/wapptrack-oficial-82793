@@ -1,5 +1,8 @@
 project_id = "bwicygxyhkdgrypqrijo"
 
+[functions.facebook-app-id]
+verify_jwt = false
+
 [functions.evolution-webhook]
 verify_jwt = false
 
