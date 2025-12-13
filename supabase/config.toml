@@ -28,4 +28,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.facebook-oauth-callback]
-verify_jwt = true
+verify_jwt = false

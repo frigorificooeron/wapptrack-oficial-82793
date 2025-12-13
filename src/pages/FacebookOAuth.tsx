@@ -36,13 +36,25 @@ export default function FacebookOAuth() {
     try {
       setStatus('processing');
 
+      // Verificar se o usuário está autenticado
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('User not authenticated:', userError);
+        toast.error('Você precisa estar logado para conectar o Facebook');
+        setStatus('error');
+        setTimeout(() => navigate('/login'), 3000);
+        return;
+      }
+
       // Chamar edge function para trocar código por access token
       const { data, error: functionError } = await supabase.functions.invoke(
         'facebook-oauth-callback',
         {
           body: { 
             code,
-            redirectUri: `${window.location.origin}/auth/facebook/callback`
+            redirectUri: `${window.location.origin}/auth/facebook/callback`,
+            userId: user.id
           }
         }
       );
