@@ -12,11 +12,18 @@ serve(async (req) => {
   }
 
   try {
-    const { code, redirectUri } = await req.json();
+    const { code, redirectUri, userId } = await req.json();
 
     if (!code || !redirectUri) {
       return new Response(
         JSON.stringify({ error: 'Missing code or redirectUri' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'Missing userId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -65,40 +72,18 @@ serve(async (req) => {
 
     console.log('✅ Access token obtained successfully');
 
-    // Obter informações do usuário autenticado no Supabase
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // Usar service role key para salvar o token
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: {
-        headers: { Authorization: authHeader },
-      },
-    });
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      console.error('Error getting user:', userError);
-      return new Response(
-        JSON.stringify({ error: 'User not authenticated' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('💾 Saving access token to database...');
+    console.log('💾 Saving access token to database for user:', userId);
 
     // Salvar o access token nas configurações da empresa
     const { error: updateError } = await supabase
       .from('company_settings')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         facebook_access_token: accessToken,
         updated_at: new Date().toISOString()
       }, {
