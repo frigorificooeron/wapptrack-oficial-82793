@@ -63,41 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setLoading(true);
       
-      // Demo login check
-      if (email === 'demo@wapptrack.com' && password === 'demo123') {
-        // Create a mock session for demo
-        const mockUser = {
-          id: 'demo-user-id',
-          email: 'demo@wapptrack.com',
-          aud: 'authenticated',
-          role: 'authenticated',
-          email_confirmed_at: new Date().toISOString(),
-          phone: '',
-          confirmed_at: new Date().toISOString(),
-          last_sign_in_at: new Date().toISOString(),
-          app_metadata: {},
-          user_metadata: {},
-          identities: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as User;
-        
-        const mockSession = {
-          access_token: 'demo-access-token',
-          refresh_token: 'demo-refresh-token',
-          expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          token_type: 'bearer',
-          user: mockUser
-        } as Session;
-        
-        setSession(mockSession);
-        setUser(mockUser);
-        toast.success('Login realizado com sucesso!');
-        navigate('/dashboard');
-        return;
-      }
-      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
