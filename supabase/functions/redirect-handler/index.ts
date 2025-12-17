@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // Zero-Width Unicode characters for invisible token encoding
 const ZERO_WIDTH_CHARS = [
@@ -80,8 +80,8 @@ serve(async (req) => {
       ctwaClid
     });
 
-    // Inicializar Supabase
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Inicializar Supabase com service role para bypass RLS
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Salvar dados do clique em campaign_clicks
     const { data: clickData, error: clickError } = await supabase
@@ -139,7 +139,7 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           },
           body: JSON.stringify({
             pixelId: campaign.pixel_id,
