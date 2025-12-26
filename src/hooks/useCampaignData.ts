@@ -1,6 +1,5 @@
 
 import { useCampaignLoader } from './useCampaignLoader';
-import { useFormSubmission } from './useFormSubmission';
 import { useDirectWhatsAppRedirect } from './useDirectWhatsAppRedirect';
 import { CompanyBranding } from '@/types/campaign';
 
@@ -11,11 +10,6 @@ export const useCampaignData = (campaignId: string | null, debug: boolean) => {
     pixelInitialized,
     error
   } = useCampaignLoader(campaignId, debug);
-
-  const {
-    handleFormSubmit,
-    updateLeadWhatsAppStatus
-  } = useFormSubmission(campaignId, campaign, pixelInitialized);
 
   const {
     handleDirectWhatsAppRedirect
@@ -40,8 +34,6 @@ export const useCampaignData = (campaignId: string | null, debug: boolean) => {
     error,
     pixelInitialized,
     companyBranding,
-    handleFormSubmit,
-    handleDirectWhatsAppRedirect,
-    updateLeadWhatsAppStatus
+    handleDirectWhatsAppRedirect
   };
 };

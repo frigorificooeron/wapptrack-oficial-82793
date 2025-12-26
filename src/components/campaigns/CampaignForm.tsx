@@ -49,9 +49,6 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
     onCampaignChange({ ...campaign, event_type: value as Campaign['event_type'] });
   };
 
-  const handleRedirectTypeChange = (value: string) => {
-    onCampaignChange({ ...campaign, redirect_type: value as Campaign['redirect_type'] });
-  };
 
   const handlePixelIntegrationTypeChange = (value: string) => {
     onCampaignChange({ ...campaign, pixel_integration_type: value as Campaign['pixel_integration_type'] });
@@ -255,23 +252,6 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                   placeholder="Ex: 5511999887766"
                 />
               </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="redirect_type">Tipo de redirecionamento</Label>
-                <Select
-                  value={campaign.redirect_type || 'whatsapp'}
-                  onValueChange={handleRedirectTypeChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo de redirecionamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="whatsapp">Direto para WhatsApp</SelectItem>
-                    <SelectItem value="form">Formulário de Lead</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="grid gap-2">
                 <Label htmlFor="pixel_id">ID do Facebook Pixel</Label>
                 <Input

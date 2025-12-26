@@ -3,30 +3,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { togglePixelDebug } from '@/lib/fbPixel';
 import BrandingSection from '@/components/BrandingSection';
 import LoadingScreen from '@/components/LoadingScreen';
-import ContactForm from '@/components/ContactForm';
-import { useCampaignData } from '@/hooks/useCampaignData';
+import { useCampaignLoader } from '@/hooks/useCampaignLoader';
 
 const Redirect = () => {
   const [searchParams] = useSearchParams();
   const campaignId = searchParams.get('id');
   const debug = searchParams.get('debug') === 'true';
   
-  const [loading, setLoading] = useState(false);
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
   const [errorState, setErrorState] = useState<string | null>(null);
   const redirectExecuted = useRef(false);
 
   const {
     campaign,
     isLoading,
-    error,
-    companyBranding,
-    handleFormSubmit
-  } = useCampaignData(campaignId, debug);
+    error
+  } = useCampaignLoader(campaignId, debug);
+
+  // Default company branding
+  const companyBranding = {
+    logo: campaign?.logo_url || "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&h=150&q=80",
+    title: campaign?.company_title || "Sua Empresa",
+    subtitle: campaign?.company_subtitle || "Sistema de Marketing Digital"
+  };
 
   const handleDirectWhatsAppRedirect = async () => {
     if (!campaign || redirectExecuted.current || !campaignId) return;
@@ -77,43 +78,14 @@ const Redirect = () => {
 
   useEffect(() => {
     // Handle direct WhatsApp redirect - só executar uma vez quando a campanha for carregada
-    if (campaign && 
-        campaign.redirect_type === 'whatsapp' && 
-        !isLoading && 
-        !redirectExecuted.current) {
-      
+    if (campaign && !isLoading && !redirectExecuted.current) {
       handleDirectWhatsAppRedirect();
     }
-  }, [campaign, isLoading, handleDirectWhatsAppRedirect]);
-
-  const onFormSubmit = async (phone: string, name: string) => {
-    console.log('📝 [REDIRECT] Envio de formulário iniciado para:', { phone, name, campaignId });
-    setLoading(true);
-    try {
-      await handleFormSubmit(phone, name);
-      console.log('✅ [REDIRECT] Formulário processado com sucesso');
-    } catch (err) {
-      console.error('❌ [REDIRECT] Erro no envio do formulário:', err);
-      setLoading(false);
-    }
-  };
-
-  // Function to toggle debug mode
-  const handleToggleDebug = () => {
-    togglePixelDebug(!debug);
-    const newUrl = new URL(window.location.href);
-    if (!debug) {
-      newUrl.searchParams.set('debug', 'true');
-    } else {
-      newUrl.searchParams.delete('debug');
-    }
-    window.history.replaceState({}, '', newUrl.toString());
-    window.location.reload();
-  };
+  }, [campaign, isLoading]);
 
   // Show loading screen for direct WhatsApp redirect
-  if (showLoadingScreen && campaign?.redirect_type === 'whatsapp') {
-    return <LoadingScreen progress={loadingProgress} />;
+  if (showLoadingScreen) {
+    return <LoadingScreen progress={0} />;
   }
 
   const displayError = error || errorState;
@@ -154,12 +126,7 @@ const Redirect = () => {
     );
   }
 
-  // Se é redirecionamento direto e já está processando, não mostrar o formulário
-  if (campaign?.redirect_type === 'whatsapp' && showLoadingScreen) {
-    return null;
-  }
-
-  // Mostrar formulário para campanhas de formulário ou se não há redirecionamento direto
+  // Redirecionamento sempre acontece automaticamente
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md">
@@ -170,20 +137,6 @@ const Redirect = () => {
           subtitle={companyBranding.subtitle}
           campaignName={campaign?.name}
         />
-
-        {/* Hidden debug information */}
-        <div style={{ display: 'none' }}>
-          <div className="mt-2">
-            <button 
-              className="text-xs text-gray-500 underline"
-              onClick={handleToggleDebug}
-            >
-              {debug ? 'Desativar Debug' : 'Ativar Debug'}
-            </button>
-          </div>
-        </div>
-        
-        <ContactForm onSubmit={onFormSubmit} loading={loading} />
       </div>
     </div>
   );
