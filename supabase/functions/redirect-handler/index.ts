@@ -49,8 +49,31 @@ serve(async (req) => {
     }
 
     // Capturar dados da requisição
-    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+                      req.headers.get('x-real-ip') || 
+                      req.headers.get('cf-connecting-ip') || 
+                      'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
+
+    // 🌍 Geolocalização automática por IP (sem pedir permissão ao usuário)
+    let geoData = { city: null, region: null, country: null, isp: null };
+    try {
+      const geoResponse = await fetch(`http://ip-api.com/json/${ipAddress}?fields=status,country,regionName,city,isp,query`);
+      if (geoResponse.ok) {
+        const geoJson = await geoResponse.json();
+        if (geoJson.status === 'success') {
+          geoData = {
+            city: geoJson.city || null,
+            region: geoJson.regionName || null,
+            country: geoJson.country || null,
+            isp: geoJson.isp || null
+          };
+          console.log('🌍 [REDIRECT] Geolocalização por IP:', geoData);
+        }
+      }
+    } catch (geoError) {
+      console.warn('⚠️ [REDIRECT] Erro ao buscar geolocalização:', geoError);
+    }
 
     // Capturar UTMs e parâmetros de anúncios
     const utmSource = url.searchParams.get('utm_source');
@@ -75,6 +98,7 @@ serve(async (req) => {
     console.log('🔍 [REDIRECT] Dados capturados:', {
       ipAddress,
       userAgent: userAgent.substring(0, 50),
+      geoData,
       utmSource,
       fbclid,
       ctwaClid
@@ -83,7 +107,7 @@ serve(async (req) => {
     // Inicializar Supabase com service role para bypass RLS
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Salvar dados do clique em campaign_clicks
+    // Salvar dados do clique em campaign_clicks (com geolocalização por IP)
     const { data: clickData, error: clickError } = await supabase
       .from('campaign_clicks')
       .insert({
@@ -104,7 +128,14 @@ serve(async (req) => {
         ip_address: ipAddress,
         user_agent: userAgent,
         source_url: sourceUrl,
-        source_id: sourceId
+        source_id: sourceId,
+        // 🌍 Dados de geolocalização por IP (automático)
+        device_info: {
+          city: geoData.city,
+          region: geoData.region,
+          country: geoData.country,
+          isp: geoData.isp
+        }
       })
       .select()
       .single();

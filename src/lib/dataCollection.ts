@@ -400,34 +400,34 @@ export const collectFacebookData = (additionalData?: any): FacebookData => {
   };
 };
 
-// Geolocation Data Collection
-export const collectGeolocationData = (): Promise<GeolocationData> => {
-  return new Promise((resolve) => {
-    const defaultData: GeolocationData = {
-      country: 'BR', // Default to Brazil
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    };
+// Geolocation Data Collection - Automática por IP (sem pedir permissão)
+export const collectGeolocationData = async (): Promise<GeolocationData> => {
+  const defaultData: GeolocationData = {
+    country: 'Brasil',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
 
-    if (!navigator.geolocation) {
-      resolve(defaultData);
-      return;
+  try {
+    // Usar API de geolocalização por IP (automático, sem permissão)
+    const response = await fetch('https://ipapi.co/json/', { 
+      signal: AbortSignal.timeout(3000) 
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        country: data.country_name || 'Brasil',
+        region: data.region || undefined,
+        city: data.city || undefined,
+        timezone: data.timezone || defaultData.timezone,
+        ipAddress: data.ip || undefined,
+      };
     }
+  } catch (error) {
+    console.warn('[GEOLOCATION] Usando dados padrão:', error);
+  }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          ...defaultData,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        });
-      },
-      () => {
-        resolve(defaultData);
-      },
-      { timeout: 5000, enableHighAccuracy: false }
-    );
-  });
+  return defaultData;
 };
 
 // Nova função para integrar com o sistema de device_data - APRIMORADA
