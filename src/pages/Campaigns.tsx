@@ -251,11 +251,11 @@ const Campaigns = () => {
 
         {/* BLOCO PARA VISUALIZAR LINK LIMPO DA CAMPANHA SELECIONADA */}
         {selectedCampaign && (
-          <div className="mt-2 bg-gray-50 border border-gray-200 rounded px-4 py-3">
-            <span className="font-semibold">Link de rastreamento limpo:</span>
+          <div className="mt-2 bg-card border border-border rounded px-4 py-3">
+            <span className="font-semibold text-foreground">Link de rastreamento limpo:</span>
             <div className="flex gap-2 mt-1">
               <input
-                className="w-full px-2 py-1 border rounded bg-gray-100 text-sm"
+                className="w-full px-2 py-1 border border-input rounded bg-muted text-foreground text-sm"
                 readOnly
                 value={getTrackingUrl(selectedCampaign)}
               />
@@ -274,33 +274,33 @@ const Campaigns = () => {
             {showCustomUtm && (
               <div className="mt-3 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <input className="border px-2 py-1 rounded" placeholder="utm_source"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_source"
                     value={customUtms.utm_source}
                     onChange={e => setCustomUtms({ ...customUtms, utm_source: e.target.value })}
                   />
-                  <input className="border px-2 py-1 rounded" placeholder="utm_medium"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_medium"
                     value={customUtms.utm_medium}
                     onChange={e => setCustomUtms({ ...customUtms, utm_medium: e.target.value })}
                   />
-                  <input className="border px-2 py-1 rounded" placeholder="utm_campaign"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_campaign"
                     value={customUtms.utm_campaign}
                     onChange={e => setCustomUtms({ ...customUtms, utm_campaign: e.target.value })}
                   />
-                  <input className="border px-2 py-1 rounded" placeholder="utm_content"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_content"
                     value={customUtms.utm_content}
                     onChange={e => setCustomUtms({ ...customUtms, utm_content: e.target.value })}
                   />
-                  <input className="border px-2 py-1 rounded" placeholder="utm_term"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_term"
                     value={customUtms.utm_term}
                     onChange={e => setCustomUtms({ ...customUtms, utm_term: e.target.value })}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <input className="border px-2 py-1 rounded" placeholder="gclid (Google Ads)"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="gclid (Google Ads)"
                     value={customUtms.gclid}
                     onChange={e => setCustomUtms({ ...customUtms, gclid: e.target.value })}
                   />
-                  <input className="border px-2 py-1 rounded" placeholder="fbclid (Facebook Ads)"
+                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="fbclid (Facebook Ads)"
                     value={customUtms.fbclid}
                     onChange={e => setCustomUtms({ ...customUtms, fbclid: e.target.value })}
                   />
