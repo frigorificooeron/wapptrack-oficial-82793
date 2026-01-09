@@ -37,7 +37,7 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = "https://evolutionapi.workidigital.tech";
+    const baseUrl = "https://evoapi.workidigital.tech";
     const url = `${baseUrl}/instance/logout/${instanceId}`;
     console.log(`Disconnecting instance: ${instanceId}`);
 

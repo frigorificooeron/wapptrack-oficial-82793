@@ -36,7 +36,7 @@ serve(async (req)=>{
         }
       });
     }
-    const baseUrl = "https://evolutionapi.workidigital.tech";
+    const baseUrl = "https://evoapi.workidigital.tech";
     const url = `${baseUrl}/instance/connect/${instanceId}`;
     console.log(`Getting QR code for instance: ${instanceId}`);
     const response = await fetch(url, {
