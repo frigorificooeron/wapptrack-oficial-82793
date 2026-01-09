@@ -17,7 +17,7 @@ const EvolutionApiSettings = () => {
   // Configurações fixas internas - não editáveis pelo usuário
   const EVOLUTION_CONFIG = {
     instance_name: 'Herickson',
-    base_url: 'https://evolutionapi.workidigital.tech'
+    base_url: 'https://evoapi.workidigital.tech'
   };
 
   const fetchInstanceStatus = async () => {
