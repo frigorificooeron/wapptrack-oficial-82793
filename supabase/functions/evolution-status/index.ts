@@ -36,7 +36,7 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = "https://evolutionapi.workidigital.tech";
+    const baseUrl = "https://evoapi.workidigital.tech";
     const url = `${baseUrl}/instance/connectionState/${instanceId}`;
     console.log(`Getting status for instance: ${instanceId}`);
 
