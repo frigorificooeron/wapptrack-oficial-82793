@@ -1,15 +1,54 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
-serve(async (req)=>{
+
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: corsHeaders
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
+
   try {
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Unauthorized - Missing or invalid authorization header'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    
+    // Verify the JWT token
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      console.error('Authentication failed:', claimsError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Unauthorized - Invalid token'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const userId = claimsData.claims.sub;
+    console.log('✅ Authenticated user:', userId);
+
     const { instanceId } = await req.json();
     if (!instanceId) {
       return new Response(JSON.stringify({
@@ -17,12 +56,10 @@ serve(async (req)=>{
         error: 'instanceId is required'
       }), {
         status: 400,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
     const apiKey = Deno.env.get('EVOLUTION_API_KEY');
     if (!apiKey) {
       return new Response(JSON.stringify({
@@ -30,15 +67,14 @@ serve(async (req)=>{
         error: 'Evolution API key not configured'
       }), {
         status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
     const baseUrl = "https://evoapi.workidigital.tech";
     const url = `${baseUrl}/instance/connect/${instanceId}`;
-    console.log(`Getting QR code for instance: ${instanceId}`);
+    console.log(`Getting QR code for instance: ${instanceId} by user: ${userId}`);
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -46,9 +82,11 @@ serve(async (req)=>{
         'Content-Type': 'application/json'
       }
     });
+
     if (!response.ok) {
       throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
     }
+
     const data = await response.json();
     console.log('Evolution API response:', data);
 
@@ -69,7 +107,7 @@ serve(async (req)=>{
         rawQrcodeString = rawQrcodeString.substring(2);
       }
       const parts = rawQrcodeString.split(',');
-      for (const part of parts){
+      for (const part of parts) {
         let cleanedPart = part.endsWith(':1') ? part.slice(0, -2) : part;
         if (base64Regex.test(cleanedPart)) {
           qrcodeBase64 = cleanedPart;
@@ -85,10 +123,7 @@ serve(async (req)=>{
         qrcode: qrcodeData,
         pairingCode: data.pairingCode || null
       }), {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } else {
       console.error("Could not extract valid QR code from Evolution API response:", data);
@@ -97,10 +132,7 @@ serve(async (req)=>{
         error: 'Could not extract valid QR code from API response'
       }), {
         status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
   } catch (error) {
@@ -110,11 +142,7 @@ serve(async (req)=>{
       error: (error as Error)?.message || 'Failed to get QR code'
     }), {
       status: 500,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
-

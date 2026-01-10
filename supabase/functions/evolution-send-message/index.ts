@@ -12,6 +12,38 @@ serve(async (req) => {
   }
 
   try {
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - Missing or invalid authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Verify the JWT token
+    const authSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await authSupabase.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      console.error('Authentication failed:', claimsError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.claims.sub;
+    console.log('✅ Authenticated user:', userId);
+
     const { 
       instanceName, 
       phone, 
@@ -40,9 +72,31 @@ serve(async (req) => {
       throw new Error('Mensagem ou mídia é obrigatória');
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify user owns the lead before sending message
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('id, user_id')
+      .eq('id', leadId)
+      .single();
+
+    if (leadError || !lead) {
+      console.error('Lead not found:', leadError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Lead not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (lead.user_id !== userId) {
+      console.error('Unauthorized: User does not own this lead');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Forbidden - You do not own this lead' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Buscar instância ativa
     const { data: instance, error: instanceError } = await supabase
