@@ -3,6 +3,7 @@ import { getUtmsFromDirectClick } from './utmHandler.ts';
 import { getDeviceDataByPhone } from './deviceDataHandler.ts';
 import { getContactName } from './helpers.ts';
 import { logSecurityEvent } from './security.ts';
+import { fetchProfilePicture } from './profilePictureHandler.ts';
 
 export const handleDirectLead = async ({ 
   supabase, 
@@ -132,42 +133,8 @@ export const handleDirectLead = async ({
     
     console.log(`📋 [DIRECT LEAD] UTMs finais:`, finalUtms);
 
-    // 📸 Buscar foto do perfil do WhatsApp
-    let profilePictureUrl = null;
-    try {
-      const cleanPhone = realPhoneNumber.replace('@s.whatsapp.net', '');
-      
-      const { data: instances } = await supabase
-        .from('whatsapp_instances')
-        .select('instance_name, base_url')
-        .eq('status', 'connected')
-        .limit(1);
-      
-      if (instances && instances.length > 0) {
-        const instance = instances[0];
-        const apiKey = Deno.env.get('EVOLUTION_API_KEY') || '';
-        
-        const response = await fetch(
-          `${instance.base_url}/chat/fetchProfilePictureUrl/${instance.instance_name}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': apiKey,
-            },
-            body: JSON.stringify({ number: cleanPhone })
-          }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          profilePictureUrl = data.profilePictureUrl || null;
-          console.log(`📸 Foto capturada para lead direto: ${profilePictureUrl}`);
-        }
-      }
-    } catch (photoError) {
-      console.error('⚠️ Erro ao buscar foto:', photoError);
-    }
+    // 📸 Buscar foto do perfil do WhatsApp usando handler reutilizável
+    const profilePictureUrl = await fetchProfilePicture(supabase, realPhoneNumber, instanceName);
 
     // 🆕 Preparar dados do lead
     const leadData: any = {
