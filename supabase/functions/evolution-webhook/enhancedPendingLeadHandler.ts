@@ -1,6 +1,7 @@
 import { getDeviceDataByPhone } from './deviceDataHandler.ts';
 import { getTrackingDataBySession } from './sessionTrackingHandler.ts';
 import { handleCTWACorrelation } from './ctwaCorrelationHandler.ts';
+import { fetchAndUpdateLeadProfilePicture } from './profilePictureHandler.ts';
 
 // 🆕 HANDLER MELHORADO COM campaign_clicks + CAPI
 export const handleEnhancedPendingLeadConversion = async (
@@ -141,6 +142,12 @@ export const handleEnhancedPendingLeadConversion = async (
       console.log('✅ [ENHANCED PENDING] Pending lead convertido:', pendingLead.id);
       leadId = conversionResult.data?.lead_id || null;
       convertedCount++;
+
+      // 📸 Buscar e atualizar foto de perfil do lead convertido
+      if (leadId) {
+        console.log(`📸 [ENHANCED PENDING] Buscando foto de perfil para lead convertido: ${leadId}`);
+        await fetchAndUpdateLeadProfilePicture(supabase, leadId, phone);
+      }
 
       // Marcar clique como convertido
       if (clickData) {
