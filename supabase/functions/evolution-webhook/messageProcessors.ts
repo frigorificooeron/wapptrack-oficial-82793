@@ -9,7 +9,7 @@ export function cleanMessageFromInvisibleToken(message: string): string {
 }
 
 // 🔐 Decodifica token invisível de caracteres zero-width
-function decodeInvisibleToken(text: string): string | null {
+export function decodeInvisibleToken(text: string): string | null {
   const reverseMap: Record<string, string> = {
     '\u200B': '0',
     '\u200C': '1',
