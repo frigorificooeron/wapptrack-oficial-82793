@@ -71,7 +71,7 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = "https://evoapi.workidigital.tech";
+    const baseUrl = Deno.env.get('EVOLUTION_API_URL') || "https://evoapi.workidigital.tech";
     const url = `${baseUrl}/instance/connectionState/${instanceId}`;
     console.log(`Getting status for instance: ${instanceId} by user: ${userId}`);
 
