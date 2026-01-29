@@ -275,6 +275,7 @@ export const useLeadOperations = (leads: Lead[], setLeads: React.Dispatch<React.
     currentLead,
     selectedLead,
     selectedLeads,
+    setSelectedLeads, // Expose setter for bulk operations
     handleInputChange,
     handlePhoneChange,
     handleSelectChange,

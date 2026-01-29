@@ -8,9 +8,11 @@ import { getLeads, getCampaigns } from '@/services/dataService';
 import { Lead, Campaign } from '@/types';
 import { Plus, Table2, LayoutGrid } from 'lucide-react';
 import { useLeadOperations } from '@/hooks/useLeadOperations';
+import { useBulkLeadOperations } from '@/hooks/useBulkLeadOperations';
 import LeadsTable from '@/components/leads/LeadsTable';
 import LeadDialog from '@/components/leads/LeadDialog';
 import LeadDetailDialog from '@/components/leads/LeadDetailDialog';
+import BulkActionsBar from '@/components/leads/BulkActionsBar';
 import { KanbanBoard } from '@/components/leads/KanbanBoard';
 import { LeadChatDialog } from '@/components/leads/LeadChatDialog';
 import { toast } from "sonner";
@@ -46,8 +48,16 @@ const Leads = () => {
     handleSelectLead,
     handleSelectAll,
     handleDeleteSelected,
-    openWhatsApp
+    openWhatsApp,
+    setSelectedLeads
   } = useLeadOperations(leads, setLeads);
+
+  // Bulk operations hook
+  const { 
+    handleBulkDelete, 
+    handleBulkStatusUpdate, 
+    handleExportCSV 
+  } = useBulkLeadOperations(leads, setLeads, selectedLeads, setSelectedLeads);
 
   const fetchData = async () => {
     try {
@@ -261,6 +271,13 @@ const Leads = () => {
           </TabsContent>
 
           <TabsContent value="table" className="mt-0">
+            <BulkActionsBar
+              selectedLeads={selectedLeads}
+              leads={filteredLeads}
+              onDeleteSelected={handleBulkDelete}
+              onUpdateStatus={handleBulkStatusUpdate}
+              onExportCSV={handleExportCSV}
+            />
             <LeadsTable
               leads={filteredLeads}
               isLoading={isLoading}
