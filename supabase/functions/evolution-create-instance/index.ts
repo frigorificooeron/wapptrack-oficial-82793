@@ -87,7 +87,7 @@ serve(async (req) => {
       });
     }
 
-    const baseUrl = "https://evoapi.workidigital.tech";
+    const baseUrl = Deno.env.get('EVOLUTION_API_URL') || "https://evoapi.workidigital.tech";
     const url = `${baseUrl}/instance/create`;
     
     console.log(`Creating instance: ${trimmedName} for user: ${userId}`);
