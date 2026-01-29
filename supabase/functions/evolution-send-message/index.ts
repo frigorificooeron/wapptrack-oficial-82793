@@ -25,14 +25,15 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    // Verify the JWT token using getUser
+    // Verify the JWT token using getUser with token
     const authSupabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
     
-    const { data: { user }, error: userError } = await authSupabase.auth.getUser();
+    const token = authHeader.replace('Bearer ', '');
+    const { data: userData, error: userError } = await authSupabase.auth.getUser(token);
     
-    if (userError || !user) {
+    if (userError || !userData?.user) {
       console.error('Authentication failed:', userError);
       return new Response(
         JSON.stringify({ success: false, error: 'Unauthorized - Invalid token' }),
@@ -40,7 +41,7 @@ serve(async (req) => {
       );
     }
 
-    const userId = user.id;
+    const userId = userData.user.id;
     console.log('✅ Authenticated user:', userId);
 
     const { 
