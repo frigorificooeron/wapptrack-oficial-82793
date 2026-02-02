@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const LOG_LEVEL = Deno.env.get('LOG_LEVEL') || 'info'; // 'debug', 'info', 'warn', 'error'
 
 // Zero-Width Unicode characters for invisible token encoding
 const ZERO_WIDTH_CHARS = [
@@ -16,6 +17,42 @@ const ZERO_WIDTH_CHARS = [
   '\u200D', // Zero Width Joiner
   '\uFEFF'  // Zero Width No-Break Space
 ];
+
+// Log levels hierarchy
+const LOG_LEVELS: Record<string, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+function shouldLog(level: string): boolean {
+  return LOG_LEVELS[level] >= LOG_LEVELS[LOG_LEVEL];
+}
+
+function logDebug(message: string, data?: any) {
+  if (shouldLog('debug')) {
+    console.log(`🔍 [DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+  }
+}
+
+function logInfo(message: string, data?: any) {
+  if (shouldLog('info')) {
+    console.log(`📍 [INFO] ${message}`, data ? JSON.stringify(data) : '');
+  }
+}
+
+function logWarn(message: string, data?: any) {
+  if (shouldLog('warn')) {
+    console.warn(`⚠️ [WARN] ${message}`, data ? JSON.stringify(data) : '');
+  }
+}
+
+function logError(message: string, data?: any) {
+  if (shouldLog('error')) {
+    console.error(`❌ [ERROR] ${message}`, data ? JSON.stringify(data) : '');
+  }
+}
 
 function encodeInvisibleToken(trackingId: string): string {
   let encoded = '';
@@ -39,7 +76,7 @@ serve(async (req) => {
     const trackingId = url.searchParams.get('t');
     const campaignId = url.searchParams.get('id');
 
-    console.log('📍 [REDIRECT] Processando redirect:', { trackingId, campaignId });
+    logInfo('Processando redirect', { trackingId, campaignId });
 
     if (!trackingId || !campaignId) {
       return new Response(
@@ -48,14 +85,14 @@ serve(async (req) => {
       );
     }
 
-    // Capturar dados da requisição
+    // Capturar dados da requisição (privacy-preserving)
     const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
                       req.headers.get('x-real-ip') || 
                       req.headers.get('cf-connecting-ip') || 
                       'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
-    // 🌍 Geolocalização automática por IP (sem pedir permissão ao usuário)
+    // 🌍 Geolocalização automática por IP
     let geoData = { city: null, region: null, country: null, isp: null };
     try {
       const geoResponse = await fetch(`http://ip-api.com/json/${ipAddress}?fields=status,country,regionName,city,isp,query`);
@@ -68,11 +105,11 @@ serve(async (req) => {
             country: geoJson.country || null,
             isp: geoJson.isp || null
           };
-          console.log('🌍 [REDIRECT] Geolocalização por IP:', geoData);
+          logDebug('Geolocalização obtida', { city: geoData.city, country: geoData.country });
         }
       }
     } catch (geoError) {
-      console.warn('⚠️ [REDIRECT] Erro ao buscar geolocalização:', geoError);
+      logWarn('Erro ao buscar geolocalização');
     }
 
     // Capturar UTMs e parâmetros de anúncios
@@ -95,19 +132,22 @@ serve(async (req) => {
     // Gerar token invisível
     const invisibleToken = encodeInvisibleToken(trackingId);
 
-    console.log('🔍 [REDIRECT] Dados capturados:', {
-      ipAddress,
-      userAgent: userAgent.substring(0, 50),
-      geoData,
+    // Privacy-preserving logging: only log metadata, not PII values
+    logInfo('Click processado', {
+      hasIp: !!ipAddress && ipAddress !== 'unknown',
+      city: geoData.city,
+      country: geoData.country,
       utmSource,
-      fbclid,
-      ctwaClid
+      utmMedium,
+      hasFbclid: !!fbclid,
+      hasGclid: !!gclid,
+      hasCtwaClid: !!ctwaClid
     });
 
     // Inicializar Supabase com service role para bypass RLS
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Salvar dados do clique em campaign_clicks (com geolocalização por IP)
+    // Salvar dados do clique em campaign_clicks
     const { data: clickData, error: clickError } = await supabase
       .from('campaign_clicks')
       .insert({
@@ -129,7 +169,6 @@ serve(async (req) => {
         user_agent: userAgent,
         source_url: sourceUrl,
         source_id: sourceId,
-        // 🌍 Dados de geolocalização por IP (automático)
         device_info: {
           city: geoData.city,
           region: geoData.region,
@@ -141,9 +180,9 @@ serve(async (req) => {
       .single();
 
     if (clickError) {
-      console.error('❌ [REDIRECT] Erro ao salvar clique:', clickError);
+      logError('Erro ao salvar clique', { error: clickError.message });
     } else {
-      console.log('✅ [REDIRECT] Clique salvo:', clickData?.id);
+      logDebug('Clique salvo', { id: clickData?.id });
     }
 
     // Buscar dados da campanha
@@ -154,7 +193,7 @@ serve(async (req) => {
       .single();
 
     if (campaignError || !campaign) {
-      console.error('❌ [REDIRECT] Campanha não encontrada:', campaignError);
+      logError('Campanha não encontrada', { campaignId });
       return new Response(
         JSON.stringify({ error: 'Campaign not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -163,7 +202,7 @@ serve(async (req) => {
 
     // Disparar evento PageView via CAPI se habilitado
     if (campaign.conversion_api_enabled && campaign.pixel_id && campaign.facebook_access_token) {
-      console.log('📊 [REDIRECT] Disparando PageView via CAPI...');
+      logDebug('Disparando PageView via CAPI');
       
       try {
         const capiResponse = await fetch(`${SUPABASE_URL}/functions/v1/facebook-conversions`, {
@@ -190,13 +229,12 @@ serve(async (req) => {
         });
 
         if (capiResponse.ok) {
-          console.log('✅ [REDIRECT] PageView enviado via CAPI');
+          logDebug('PageView enviado via CAPI');
         } else {
-          const errorText = await capiResponse.text();
-          console.error('❌ [REDIRECT] Erro ao enviar PageView via CAPI:', errorText);
+          logWarn('Erro ao enviar PageView via CAPI');
         }
       } catch (error) {
-        console.error('❌ [REDIRECT] Exceção ao enviar PageView via CAPI:', error);
+        logWarn('Exceção ao enviar PageView via CAPI');
       }
     }
 
@@ -210,7 +248,7 @@ serve(async (req) => {
       whatsappUrl += `&text=${encodeURIComponent(invisibleToken + 'Olá! Vim através do anúncio.')}`;
     }
 
-    console.log('↗️ [REDIRECT] Redirecionando para WhatsApp');
+    logInfo('Redirecionando para WhatsApp');
 
     // Redirecionar para WhatsApp (302 redirect)
     return new Response(null, {
@@ -222,7 +260,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('❌ [REDIRECT] Erro:', error);
+    logError('Erro no redirect', { message: (error as Error)?.message });
     return new Response(
       JSON.stringify({ error: (error as Error)?.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
