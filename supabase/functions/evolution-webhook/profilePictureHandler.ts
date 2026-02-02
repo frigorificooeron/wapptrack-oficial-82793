@@ -1,6 +1,7 @@
 // 📸 Handler reutilizável para buscar foto de perfil do WhatsApp via Evolution API
 
-const EVOLUTION_BASE_URL = "https://evoapi.workidigital.tech";
+// Use environment variable with fallback for backwards compatibility
+const EVOLUTION_BASE_URL = Deno.env.get('EVOLUTION_API_URL') || "https://evoapi.workidigital.tech";
 
 export interface ProfilePictureResult {
   url: string | null;

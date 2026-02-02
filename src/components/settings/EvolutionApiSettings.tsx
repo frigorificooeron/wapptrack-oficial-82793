@@ -14,18 +14,13 @@ const EvolutionApiSettings = () => {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
-  // Configurações fixas internas - não editáveis pelo usuário
-  const EVOLUTION_CONFIG = {
-    instance_name: 'Herickson',
-    base_url: 'https://evoapi.workidigital.tech'
-  };
+  // Instance name is configurable, URL comes from Supabase secrets via edge functions
+  const EVOLUTION_INSTANCE_NAME = 'Herickson';
 
   const fetchInstanceStatus = async () => {
     setIsLoadingStatus(true);
     try {
-      const response = await evolutionService.getInstanceStatus(
-        EVOLUTION_CONFIG.instance_name
-      );
+      const response = await evolutionService.getInstanceStatus(EVOLUTION_INSTANCE_NAME);
       if (response.success && response.status === 'open') {
         setIsConnected(true);
       } else {
@@ -49,9 +44,7 @@ const EvolutionApiSettings = () => {
     setQrCode('');
 
     try {
-      const response = await evolutionService.getQRCode(
-        EVOLUTION_CONFIG.instance_name
-      );
+      const response = await evolutionService.getQRCode(EVOLUTION_INSTANCE_NAME);
 
       if (response.success) {
         const qrCodeData = response.qrcode;
@@ -77,9 +70,7 @@ const EvolutionApiSettings = () => {
     setIsDisconnecting(true);
     
     try {
-      const response = await evolutionService.disconnectInstance(
-        EVOLUTION_CONFIG.instance_name
-      );
+      const response = await evolutionService.disconnectInstance(EVOLUTION_INSTANCE_NAME);
 
       if (response.success) {
         setIsConnected(false);
