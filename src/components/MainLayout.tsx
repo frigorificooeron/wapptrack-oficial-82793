@@ -7,8 +7,7 @@ import {
   DollarSign,
   LogOut,
   Settings,
-  ChevronLeft,
-  ChevronRight
+  Link2
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/context/AuthContext';
@@ -59,9 +58,16 @@ const AppSidebar = () => {
       current: location.pathname === '/leads'
     },
     {
+      name: 'Conversas',
+      href: '/conversations',
+      icon: MessageSquare,
+      module: 'conversations',
+      current: location.pathname === '/conversations'
+    },
+    {
       name: 'Links de rastreamento',
       href: '/campaigns',
-      icon: MessageSquare,
+      icon: Link2,
       module: 'campaigns',
       current: location.pathname === '/campaigns'
     },
