@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import MainLayout from '@/components/MainLayout';
 import { Button } from "@/components/ui/button";
@@ -14,9 +13,14 @@ import LeadDialog from '@/components/leads/LeadDialog';
 import LeadDetailDialog from '@/components/leads/LeadDetailDialog';
 import BulkActionsBar from '@/components/leads/BulkActionsBar';
 import { KanbanBoard } from '@/components/leads/KanbanBoard';
-import { LeadChatDialog } from '@/components/leads/LeadChatDialog';
+import { ChatPanel } from '@/components/leads/ChatPanel';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 const Leads = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -24,7 +28,6 @@ const Leads = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('kanban');
-  const [chatDialogOpen, setChatDialogOpen] = useState(false);
   const [chatLead, setChatLead] = useState<Lead | null>(null);
 
   const {
@@ -52,7 +55,6 @@ const Leads = () => {
     setSelectedLeads
   } = useLeadOperations(leads, setLeads);
 
-  // Bulk operations hook
   const { 
     handleBulkDelete, 
     handleBulkStatusUpdate, 
@@ -62,40 +64,18 @@ const Leads = () => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Iniciando busca de dados...');
-      
       const [leadsData, campaignsData] = await Promise.all([
         getLeads(),
         getCampaigns()
       ]);
       
-      console.log('📋 Dados brutos do getLeads():', leadsData);
+      const processedLeads = leadsData.map(lead => ({
+        ...lead,
+        last_message: lead.last_message || null
+      }));
       
-      // Garantir que os dados estão sendo processados corretamente
-      const processedLeads = leadsData.map(lead => {
-        console.log(`🔍 Processando lead ${lead.name}:`, {
-          id: lead.id,
-          last_message: lead.last_message,
-          last_message_type: typeof lead.last_message,
-          last_message_raw: JSON.stringify(lead.last_message)
-        });
-        
-        return {
-          ...lead,
-          last_message: lead.last_message || null
-        };
-      });
-      
-      console.log('✅ Leads processados:', processedLeads);
       setLeads(processedLeads);
       setCampaigns(campaignsData);
-      
-      console.log('📊 Estado final dos leads:', processedLeads.map(lead => ({
-        name: lead.name,
-        phone: lead.phone,
-        last_message: lead.last_message,
-        status: lead.status
-      })));
     } catch (error) {
       console.error('Error fetching leads data:', error);
       toast.error('Erro ao carregar dados dos leads');
@@ -107,98 +87,65 @@ const Leads = () => {
   useEffect(() => {
     fetchData();
 
-    // Configurar escuta em tempo real para mudanças na tabela de leads
-    console.log('🎧 Configurando escuta em tempo real para leads...');
     const channel = supabase
       .channel('leads-changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // Escuta INSERT, UPDATE e DELETE
+          event: '*',
           schema: 'public',
           table: 'leads'
         },
         (payload) => {
-          console.log('📡 Mudança detectada na tabela leads:', payload);
-          console.log('📡 Payload completo:', JSON.stringify(payload, null, 2));
-          
           if (payload.eventType === 'INSERT') {
-            console.log('➕ Novo lead adicionado:', payload.new);
             const newLead = payload.new as Lead;
-            console.log('➕ Detalhes da mensagem no INSERT:', {
-              last_message: newLead.last_message,
-              type: typeof newLead.last_message,
-              raw: JSON.stringify(newLead.last_message)
-            });
-            
-            // Garantir que a mensagem seja preservada
             const processedLead = {
               ...newLead,
               last_message: newLead.last_message || null
             };
-            console.log('➕ Lead processado para insert:', processedLead);
-            
-            setLeads(prev => {
-              const newLeads = [processedLead, ...prev];
-              console.log('➕ Estado atualizado após INSERT:', newLeads);
-              return newLeads;
-            });
+            setLeads(prev => [processedLead, ...prev]);
             toast.success(`Novo lead adicionado: ${processedLead.name}`);
           } 
           else if (payload.eventType === 'UPDATE') {
-            console.log('📝 Lead atualizado:', payload.new);
-            console.log('📝 Lead anterior:', payload.old);
-            
             const updatedLead = payload.new as Lead;
             const oldLead = payload.old as Lead;
-            
-            console.log('📝 Comparação de mensagens:', {
-              old_message: oldLead.last_message,
-              new_message: updatedLead.last_message,
-              old_type: typeof oldLead.last_message,
-              new_type: typeof updatedLead.last_message,
-              old_raw: JSON.stringify(oldLead.last_message),
-              new_raw: JSON.stringify(updatedLead.last_message)
-            });
-            
-            // Garantir que a mensagem seja preservada
             const processedLead = {
               ...updatedLead,
               last_message: updatedLead.last_message || null
             };
             
-            console.log('📝 Lead processado para update:', processedLead);
+            setLeads(prev => prev.map(lead => 
+              lead.id === processedLead.id ? processedLead : lead
+            ));
             
-            setLeads(prev => {
-              const updatedLeads = prev.map(lead => 
-                lead.id === processedLead.id ? processedLead : lead
-              );
-              console.log('📝 Estado atualizado após UPDATE:', updatedLeads);
-              return updatedLeads;
-            });
+            // Atualizar chatLead se for o mesmo lead
+            if (chatLead && chatLead.id === processedLead.id) {
+              setChatLead(processedLead);
+            }
             
-            // Se uma mensagem foi adicionada, mostrar notificação
             if (processedLead.last_message && processedLead.last_message !== oldLead.last_message) {
-              console.log('💬 Nova mensagem detectada:', processedLead.last_message);
               toast.info(`Nova mensagem de ${processedLead.name}: ${processedLead.last_message.substring(0, 50)}${processedLead.last_message.length > 50 ? '...' : ''}`);
             }
           }
           else if (payload.eventType === 'DELETE') {
-            console.log('🗑️ Lead removido:', payload.old);
             const deletedLead = payload.old as Lead;
             setLeads(prev => prev.filter(lead => lead.id !== deletedLead.id));
+            
+            // Fechar chat se o lead foi deletado
+            if (chatLead && chatLead.id === deletedLead.id) {
+              setChatLead(null);
+            }
+            
             toast.info(`Lead removido: ${deletedLead.name}`);
           }
         }
       )
       .subscribe();
 
-    // Cleanup: remover a escuta quando o componente for desmontado
     return () => {
-      console.log('🔌 Removendo escuta em tempo real...');
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [chatLead]);
 
   const filteredLeads = leads.filter((lead) => {
     const searchLower = searchTerm.toLowerCase();
@@ -211,86 +158,102 @@ const Leads = () => {
     );
   });
 
-  console.log('🎯 Leads filtrados sendo passados para a tabela:', filteredLeads.map(lead => ({
-    name: lead.name,
-    last_message: lead.last_message,
-    type: typeof lead.last_message
-  })));
+  const handleOpenChat = (lead: Lead) => {
+    setChatLead(lead);
+  };
+
+  const handleCloseChat = () => {
+    setChatLead(null);
+  };
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Leads</h1>
-            <p className="text-muted-foreground">Gerencie todos os seus leads de WhatsApp</p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleOpenAddDialog}>
-              <Plus className="mr-2 h-4 w-4" /> Novo Lead
-            </Button>
-          </div>
-        </div>
-
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'kanban')} className="w-full">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <Input
-              placeholder="Buscar leads por nome, telefone, campanha, status ou mensagem..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-lg"
-            />
-            <TabsList>
-              <TabsTrigger value="kanban" className="gap-2">
-                <LayoutGrid className="h-4 w-4" />
-                Kanban
-              </TabsTrigger>
-              <TabsTrigger value="table" className="gap-2">
-                <Table2 className="h-4 w-4" />
-                Tabela
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="kanban" className="mt-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-96">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="h-[calc(100vh-8rem)]">
+        <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg border">
+          {/* Painel de Leads */}
+          <ResizablePanel defaultSize={chatLead ? 60 : 100} minSize={40}>
+            <div className="h-full flex flex-col p-4 overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                <div>
+                  <h1 className="text-2xl font-bold">Leads</h1>
+                  <p className="text-muted-foreground">Gerencie todos os seus leads de WhatsApp</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleOpenAddDialog}>
+                    <Plus className="mr-2 h-4 w-4" /> Novo Lead
+                  </Button>
+                </div>
               </div>
-            ) : (
-              <KanbanBoard
-                leads={filteredLeads}
-                onLeadClick={handleOpenViewDialog}
-                onOpenChat={(lead) => {
-                  setChatLead(lead);
-                  setChatDialogOpen(true);
-                }}
-                onLeadUpdate={fetchData}
-              />
-            )}
-          </TabsContent>
 
-          <TabsContent value="table" className="mt-0">
-            <BulkActionsBar
-              selectedLeads={selectedLeads}
-              leads={filteredLeads}
-              onDeleteSelected={handleBulkDelete}
-              onUpdateStatus={handleBulkStatusUpdate}
-              onExportCSV={handleExportCSV}
-            />
-            <LeadsTable
-              leads={filteredLeads}
-              isLoading={isLoading}
-              selectedLeads={selectedLeads}
-              onSelectLead={handleSelectLead}
-              onSelectAll={handleSelectAll}
-              onDeleteSelected={handleDeleteSelected}
-              onView={handleOpenViewDialog}
-              onDelete={handleDeleteLead}
-              onOpenWhatsApp={openWhatsApp}
-            />
-          </TabsContent>
-        </Tabs>
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'kanban')} className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <Input
+                    placeholder="Buscar leads por nome, telefone, campanha, status ou mensagem..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-lg"
+                  />
+                  <TabsList>
+                    <TabsTrigger value="kanban" className="gap-2">
+                      <LayoutGrid className="h-4 w-4" />
+                      Kanban
+                    </TabsTrigger>
+                    <TabsTrigger value="table" className="gap-2">
+                      <Table2 className="h-4 w-4" />
+                      Tabela
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <TabsContent value="kanban" className="mt-0 flex-1 overflow-auto">
+                  {isLoading ? (
+                    <div className="flex items-center justify-center h-96">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    <KanbanBoard
+                      leads={filteredLeads}
+                      onLeadClick={handleOpenViewDialog}
+                      onOpenChat={handleOpenChat}
+                      onLeadUpdate={fetchData}
+                    />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="table" className="mt-0 flex-1 overflow-auto">
+                  <BulkActionsBar
+                    selectedLeads={selectedLeads}
+                    leads={filteredLeads}
+                    onDeleteSelected={handleBulkDelete}
+                    onUpdateStatus={handleBulkStatusUpdate}
+                    onExportCSV={handleExportCSV}
+                  />
+                  <LeadsTable
+                    leads={filteredLeads}
+                    isLoading={isLoading}
+                    selectedLeads={selectedLeads}
+                    onSelectLead={handleSelectLead}
+                    onSelectAll={handleSelectAll}
+                    onDeleteSelected={handleDeleteSelected}
+                    onView={handleOpenViewDialog}
+                    onDelete={handleDeleteLead}
+                    onOpenWhatsApp={openWhatsApp}
+                  />
+                </TabsContent>
+              </Tabs>
+            </div>
+          </ResizablePanel>
+
+          {/* Painel de Chat */}
+          {chatLead && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={40} minSize={25} maxSize={50}>
+                <ChatPanel lead={chatLead} onClose={handleCloseChat} />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
 
         <LeadDialog
           isOpen={isDialogOpen}
@@ -311,14 +274,6 @@ const Leads = () => {
           onSave={handleSaveFromDetailDialog}
           onOpenWhatsApp={openWhatsApp}
         />
-
-        {chatLead && (
-          <LeadChatDialog
-            lead={chatLead}
-            open={chatDialogOpen}
-            onOpenChange={setChatDialogOpen}
-          />
-        )}
       </div>
     </MainLayout>
   );
