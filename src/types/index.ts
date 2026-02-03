@@ -12,6 +12,7 @@ export interface Lead {
   campaign: string;
   status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiating' | 'converted' | 'lost' | 'cancelled';
   created_at: string;
+  updated_at?: string;
   custom_fields?: Record<string, string>;
   notes?: string;
   first_contact_date?: string;

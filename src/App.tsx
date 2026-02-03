@@ -9,6 +9,7 @@ import { ThemeProvider } from "./hooks/useTheme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
+import Conversations from "./pages/Conversations";
 import Campaigns from "./pages/Campaigns";
 import Sales from "./pages/Sales";
 import Settings from "./pages/Settings";
@@ -32,8 +33,9 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/shared/:token" element={<SharedAccessProvider><SharedLayout /></SharedAccessProvider>}>
-                <Route path="dashboard" element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
                 <Route path="leads" element={<Leads />} />
+                <Route path="conversations" element={<Conversations />} />
                 <Route path="campaigns" element={<Campaigns />} />
                 <Route path="sales" element={<Sales />} />
                 <Route path="settings" element={<Settings />} />
@@ -53,6 +55,12 @@ const App = () => (
               <Route path="/leads" element={
                 <ProtectedRoute>
                   <Leads />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/conversations" element={
+                <ProtectedRoute>
+                  <Conversations />
                 </ProtectedRoute>
               } />
               
