@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import MainLayout from '@/components/MainLayout';
 import { Lead } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/resizable";
 
 const Conversations = () => {
+  const location = useLocation();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -27,7 +29,19 @@ const Conversations = () => {
 
       if (error) throw error;
 
-      setLeads((data || []) as Lead[]);
+      const leadsData = (data || []) as Lead[];
+      setLeads(leadsData);
+
+      // Se veio um lead selecionado via navegação, seleciona ele
+      const state = location.state as { selectedLeadId?: string } | null;
+      if (state?.selectedLeadId) {
+        const leadToSelect = leadsData.find(l => l.id === state.selectedLeadId);
+        if (leadToSelect) {
+          setSelectedLead(leadToSelect);
+        }
+        // Limpar o state para não selecionar novamente em reloads
+        window.history.replaceState({}, document.title);
+      }
     } catch (error) {
       console.error('Erro ao carregar leads:', error);
       toast.error('Erro ao carregar conversas');
@@ -76,7 +90,7 @@ const Conversations = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedLead]);
+  }, [selectedLead, location.state]);
 
   const filteredLeads = leads.filter((lead) => {
     const searchLower = searchTerm.toLowerCase();
