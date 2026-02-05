@@ -165,14 +165,13 @@ serve(async (req) => {
         };
         messageText = caption || '[Vídeo]';
       } else if (mediaType === 'audio') {
-        endpoint = 'sendWhatsAppAudio';
-        // Evolution API espera o audio como base64 direto ou com prefixo data:
-        const audioData = mediaBase64.startsWith('data:') 
-          ? mediaBase64 
-          : `data:${mimeType || 'audio/ogg'};base64,${mediaBase64}`;
+        endpoint = 'sendMedia';
         body = {
           number: phone,
-          audio: audioData,
+          mediatype: 'audio',
+          mimetype: mimeType || 'audio/ogg; codecs=opus',
+          media: mediaBase64,
+          fileName: fileName || 'audio.ogg',
         };
         messageText = '[Áudio]';
       }
