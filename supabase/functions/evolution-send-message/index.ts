@@ -116,6 +116,21 @@ serve(async (req) => {
       throw new Error('EVOLUTION_API_KEY não configurada');
     }
 
+    const envEvolutionBaseUrl = Deno.env.get('EVOLUTION_API_URL');
+    const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, '');
+
+    let evolutionBaseUrl = normalizeBaseUrl(envEvolutionBaseUrl || instance.base_url || '');
+
+    // Corrigir registros antigos que ainda apontam para o domínio descontinuado
+    if (evolutionBaseUrl.includes('evolutionapi.workidigital.tech') && envEvolutionBaseUrl) {
+      console.log('🔧 base_url antiga detectada no banco, usando EVOLUTION_API_URL do ambiente');
+      evolutionBaseUrl = normalizeBaseUrl(envEvolutionBaseUrl);
+    }
+
+    if (!evolutionBaseUrl) {
+      throw new Error('EVOLUTION_API_URL não configurada');
+    }
+
     let evolutionData: any;
     let messageText = message;
 
@@ -162,7 +177,7 @@ serve(async (req) => {
         messageText = '[Áudio]';
       }
 
-      const evolutionUrl = `${instance.base_url}/message/${endpoint}/${instanceName}`;
+      const evolutionUrl = `${evolutionBaseUrl}/message/${endpoint}/${instanceName}`;
       console.log('🌐 Chamando Evolution API (mídia):', evolutionUrl, { mediaType });
 
       const evolutionResponse = await fetch(evolutionUrl, {
@@ -184,7 +199,7 @@ serve(async (req) => {
       console.log('✅ Resposta Evolution API (mídia):', evolutionData);
     } else {
       // Enviar texto
-      const evolutionUrl = `${instance.base_url}/message/sendText/${instanceName}`;
+      const evolutionUrl = `${evolutionBaseUrl}/message/sendText/${instanceName}`;
       console.log('🌐 Chamando Evolution API (texto):', evolutionUrl);
 
       const evolutionResponse = await fetch(evolutionUrl, {
