@@ -26,8 +26,10 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onSearchChange,
   onSelectLead,
 }) => {
-  const formatMessageDate = (dateString: string) => {
+  const formatMessageDate = (dateString: string | null | undefined) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     if (isToday(date)) {
       return format(date, 'HH:mm', { locale: ptBR });
     }
