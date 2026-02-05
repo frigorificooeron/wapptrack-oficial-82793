@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getLeads, getCampaigns } from '@/services/dataService';
 import { Lead, Campaign } from '@/types';
-import { Plus, Table2, LayoutGrid } from 'lucide-react';
+import { Plus, Table2, LayoutGrid, Users, Search } from 'lucide-react';
 import { useLeadOperations } from '@/hooks/useLeadOperations';
 import { useBulkLeadOperations } from '@/hooks/useBulkLeadOperations';
 import LeadsTable from '@/components/leads/LeadsTable';
@@ -150,43 +150,54 @@ const Leads = () => {
   return (
     <MainLayout>
       <div className="h-[calc(100vh-8rem)]">
-        <div className="h-full flex flex-col p-4 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="h-full flex flex-col overflow-hidden">
+          {/* Premium Header */}
+          <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold">Leads</h1>
-              <p className="text-muted-foreground">Gerencie todos os seus leads de WhatsApp</p>
+              <h1 className="page-title flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+                Leads
+              </h1>
+              <p className="page-subtitle">Gerencie todos os seus leads de WhatsApp</p>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handleOpenAddDialog}>
-                <Plus className="mr-2 h-4 w-4" /> Novo Lead
-              </Button>
-            </div>
+            <Button onClick={handleOpenAddDialog} className="premium-button text-primary-foreground h-11 px-6">
+              <Plus className="mr-2 h-4 w-4" /> Novo Lead
+            </Button>
           </div>
 
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'kanban')} className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <Input
-                placeholder="Buscar leads por nome, telefone, campanha, status ou mensagem..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-lg"
-              />
-              <TabsList>
-                <TabsTrigger value="kanban" className="gap-2">
+            {/* Search and View Toggle */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-6">
+              <div className="relative max-w-lg flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar leads por nome, telefone, campanha..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 input-premium"
+                />
+              </div>
+              <TabsList className="h-11 p-1 bg-muted/50 border border-border/50">
+                <TabsTrigger value="kanban" className="gap-2 tab-premium h-9 px-4">
                   <LayoutGrid className="h-4 w-4" />
-                  Kanban
+                  <span className="hidden sm:inline">Kanban</span>
                 </TabsTrigger>
-                <TabsTrigger value="table" className="gap-2">
+                <TabsTrigger value="table" className="gap-2 tab-premium h-9 px-4">
                   <Table2 className="h-4 w-4" />
-                  Tabela
+                  <span className="hidden sm:inline">Tabela</span>
                 </TabsTrigger>
               </TabsList>
             </div>
 
             <TabsContent value="kanban" className="mt-0 flex-1 overflow-auto">
               {isLoading ? (
-                <div className="flex items-center justify-center h-96">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="flex flex-col items-center justify-center h-96 gap-4">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium">Carregando leads...</p>
                 </div>
               ) : (
                 <KanbanBoard
