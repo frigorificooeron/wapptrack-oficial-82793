@@ -21,6 +21,12 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
 
   // Buscar mensagens iniciais
   const fetchMessages = async () => {
+    if (!leadId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -41,6 +47,12 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
 
   // Inscrever-se para atualizações em tempo real
   useEffect(() => {
+    if (!leadId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
     fetchMessages();
 
     const channel = supabase
