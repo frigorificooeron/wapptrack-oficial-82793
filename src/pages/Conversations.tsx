@@ -101,6 +101,13 @@ const Conversations = () => {
     );
   });
 
+  const handleLeadUpdate = (updatedLead: Lead) => {
+    setLeads(prev => prev.map(lead =>
+      lead.id === updatedLead.id ? updatedLead : lead
+    ));
+    setSelectedLead(updatedLead);
+  };
+
   return (
     <MainLayout>
       <div className="h-[calc(100vh-8rem)]">
@@ -121,7 +128,7 @@ const Conversations = () => {
 
           {/* Painel de chat */}
           <ResizablePanel defaultSize={65} minSize={50}>
-            <ConversationChat lead={selectedLead} />
+            <ConversationChat lead={selectedLead} onLeadUpdate={handleLeadUpdate} />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

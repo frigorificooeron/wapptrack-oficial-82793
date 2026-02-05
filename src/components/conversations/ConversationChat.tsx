@@ -8,22 +8,36 @@ import { useLeadChat } from '@/hooks/useLeadChat';
 import { formatBrazilianPhone } from '@/lib/phoneUtils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Send, MessageCircle, Loader2, Image as ImageIcon, Video, Volume2, X, Phone } from 'lucide-react';
+import { Send, MessageCircle, Loader2, Image as ImageIcon, Video, Volume2, X, Phone, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaInput } from '@/components/leads/MediaInput';
+import { LeadStatusBadge } from '@/components/leads/LeadStatusBadge';
+import { ACTIVE_FUNNEL_STATUSES, FINAL_STATUSES, FunnelStatus, getStatusLabel } from '@/constants/funnelStatuses';
+import { updateLead } from '@/services/dataService';
+import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ConversationChatProps {
   lead: Lead | null;
+  onLeadUpdate?: (updatedLead: Lead) => void;
 }
 
-export const ConversationChat: React.FC<ConversationChatProps> = ({ lead }) => {
+export const ConversationChat: React.FC<ConversationChatProps> = ({ lead, onLeadUpdate }) => {
   const { messages, loading, sending, sendMessage, sendMediaMessage } = useLeadChat(
     lead?.id || '',
     lead?.phone || ''
   );
   const [inputMessage, setInputMessage] = useState('');
   const [mediaPreview, setMediaPreview] = useState<{ url: string; type: 'image' | 'video' | 'audio'; file: File } | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const allStatuses: FunnelStatus[] = [...ACTIVE_FUNNEL_STATUSES, ...FINAL_STATUSES];
 
   // Auto scroll para última mensagem
   useEffect(() => {
@@ -37,6 +51,22 @@ export const ConversationChat: React.FC<ConversationChatProps> = ({ lead }) => {
     setInputMessage('');
     setMediaPreview(null);
   }, [lead?.id]);
+
+  const handleStatusChange = async (newStatus: FunnelStatus) => {
+    if (!lead || lead.status === newStatus) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      const updatedLead = await updateLead(lead.id, { status: newStatus });
+      toast.success(`Lead movido para "${getStatusLabel(newStatus)}"`);
+      onLeadUpdate?.(updatedLead);
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status do lead');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const handleSend = async () => {
     if (sending || !lead) return;
@@ -118,9 +148,35 @@ export const ConversationChat: React.FC<ConversationChatProps> = ({ lead }) => {
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={openWhatsApp} title="Abrir no WhatsApp">
-          <Phone className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Status Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={isUpdatingStatus} className="gap-1">
+                <LeadStatusBadge status={lead.status} />
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {allStatuses.map((status) => (
+                <DropdownMenuItem
+                  key={status}
+                  onClick={() => handleStatusChange(status)}
+                  className={cn(
+                    "cursor-pointer",
+                    lead.status === status && "bg-accent"
+                  )}
+                >
+                  <LeadStatusBadge status={status} />
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          <Button variant="ghost" size="icon" onClick={openWhatsApp} title="Abrir no WhatsApp">
+            <Phone className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
