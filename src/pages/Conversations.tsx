@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ConversationList } from '@/components/conversations/ConversationList';
 import { ConversationChat } from '@/components/conversations/ConversationChat';
+import { MessageSquare } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -110,27 +111,44 @@ const Conversations = () => {
 
   return (
     <MainLayout>
-      <div className="h-[calc(100vh-8rem)]">
-        <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg border">
-          {/* Lista de conversas */}
-          <ResizablePanel defaultSize={35} minSize={25} maxSize={45}>
-            <ConversationList
-              leads={filteredLeads}
-              isLoading={isLoading}
-              selectedLead={selectedLead}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              onSelectLead={setSelectedLead}
-            />
-          </ResizablePanel>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+            <MessageSquare className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Conversas</h1>
+            <p className="text-sm text-muted-foreground">Gerencie suas conversas com leads</p>
+          </div>
+        </div>
 
-          <ResizableHandle withHandle />
+        {/* Chat Panel */}
+        <div className="h-[calc(100vh-12rem)]">
+          <ResizablePanelGroup 
+            direction="horizontal" 
+            className="h-full rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden"
+          >
+            {/* Lista de conversas */}
+            <ResizablePanel defaultSize={35} minSize={25} maxSize={45}>
+              <ConversationList
+                leads={filteredLeads}
+                isLoading={isLoading}
+                selectedLead={selectedLead}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                onSelectLead={setSelectedLead}
+              />
+            </ResizablePanel>
 
-          {/* Painel de chat */}
-          <ResizablePanel defaultSize={65} minSize={50}>
-            <ConversationChat lead={selectedLead} onLeadUpdate={handleLeadUpdate} />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            <ResizableHandle withHandle className="bg-border/30 hover:bg-border/50 transition-colors" />
+
+            {/* Painel de chat */}
+            <ResizablePanel defaultSize={65} minSize={50}>
+              <ConversationChat lead={selectedLead} onLeadUpdate={handleLeadUpdate} />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
       </div>
     </MainLayout>
   );

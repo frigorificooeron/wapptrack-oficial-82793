@@ -138,21 +138,24 @@ const AppSidebar = () => {
   };
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
+    <Sidebar collapsible="icon" className="border-r border-border/50 bg-gradient-to-b from-card to-background">
+      <SidebarHeader className="border-b border-border/30">
         <div className={cn(
-          "flex items-center gap-3 px-2 py-3",
+          "flex items-center gap-3 px-3 py-4",
           !open && "justify-center"
         )}>
           <div className="flex-shrink-0">
             {isLoadingSettings && !isSharedMode ? (
-              <div className="h-10 w-10 rounded-full bg-muted animate-pulse border-2 border-primary/20" />
+              <div className="h-10 w-10 rounded-xl bg-muted animate-pulse ring-2 ring-primary/20" />
             ) : (
-              <img
-                src={companySettings?.logo_url || "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=150&h=150&q=80"}
-                alt="Logo"
-                className="h-10 w-10 rounded-full object-cover border-2 border-primary/20"
-              />
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary to-primary/50 rounded-xl opacity-50 group-hover:opacity-100 blur transition duration-300" />
+                <img
+                  src={companySettings?.logo_url || "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=150&h=150&q=80"}
+                  alt="Logo"
+                  className="relative h-10 w-10 rounded-xl object-cover ring-1 ring-border"
+                />
+              </div>
             )}
           </div>
           {open && (
@@ -164,7 +167,7 @@ const AppSidebar = () => {
                 </>
               ) : (
                 <>
-                  <span className="font-bold text-base text-primary truncate">
+                  <span className="font-bold text-base text-foreground truncate">
                     {companySettings?.company_name || "Sua Empresa"}
                   </span>
                   <span className="text-xs text-muted-foreground truncate">
@@ -177,16 +180,28 @@ const AppSidebar = () => {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-2 py-4">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {navigation.map((item) => (
                 checkPermission(item.module) && (
                   <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton asChild isActive={location.pathname === item.href}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={location.pathname === item.href}
+                      className={cn(
+                        "relative rounded-lg transition-all duration-200",
+                        location.pathname === item.href 
+                          ? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-primary" 
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )}
+                    >
                       <NavLink to={getNavLinkHref(item.href)}>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className={cn(
+                          "h-4 w-4 transition-colors",
+                          location.pathname === item.href && "text-primary"
+                        )} />
                         <span>{item.name}</span>
                       </NavLink>
                     </SidebarMenuButton>
@@ -199,27 +214,34 @@ const AppSidebar = () => {
       </SidebarContent>
 
       {!isSharedMode && (
-        <SidebarFooter>
-          <SidebarMenu>
+        <SidebarFooter className="border-t border-border/30 p-3">
+          <SidebarMenu className="space-y-2">
             <SidebarMenuItem>
               <div className={cn(
-                "flex items-center gap-3 px-2 py-2",
+                "flex items-center gap-3 px-2 py-2 rounded-lg bg-muted/30",
                 !open && "justify-center"
               )}>
-                <div className="flex-shrink-0 h-8 w-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
-                  {getUserInitial()}
+                <div className="relative">
+                  <div className="flex-shrink-0 h-9 w-9 bg-gradient-to-br from-primary to-primary/70 rounded-lg flex items-center justify-center text-primary-foreground text-sm font-semibold shadow-lg">
+                    {getUserInitial()}
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-emerald-500 rounded-full border-2 border-card" />
                 </div>
                 {open && (
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
+                    <p className="text-sm font-medium truncate text-foreground">
                       {getUserDisplayName()}
                     </p>
+                    <p className="text-xs text-muted-foreground">Online</p>
                   </div>
                 )}
               </div>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton onClick={logout}>
+              <SidebarMenuButton 
+                onClick={logout}
+                className="text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+              >
                 <LogOut className="h-4 w-4" />
                 <span>Sair</span>
               </SidebarMenuButton>
@@ -240,8 +262,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <AppSidebar />
         
         <main className="flex-1 overflow-auto">
-          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
-            <SidebarTrigger />
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b border-border/50 bg-background/80 backdrop-blur-md px-4 lg:px-6">
+            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+            <div className="flex-1" />
           </header>
           
           <div className="container mx-auto py-6 px-4 lg:px-8">
@@ -254,5 +277,3 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 };
 
 export default MainLayout;
-
-

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getSales, addSale, updateSale, deleteSale, getLeads, getCampaigns } from '@/services/dataService';
 import { Sale, Lead, Campaign } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, Trash2, Edit } from 'lucide-react';
+import { Plus, Trash2, Edit, DollarSign, Search } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
@@ -231,66 +231,84 @@ const Sales = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Vendas</h1>
-            <p className="text-muted-foreground">Gerencie as vendas realizadas para seus leads</p>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center ring-1 ring-emerald-500/20">
+              <DollarSign className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Vendas</h1>
+              <p className="text-sm text-muted-foreground">Gerencie as vendas realizadas para seus leads</p>
+            </div>
           </div>
-          <Button onClick={handleOpenAddDialog}>
-            <Plus className="mr-2 h-4 w-4" /> Nova Venda
+          <Button onClick={handleOpenAddDialog} className="premium-button gap-2">
+            <Plus className="h-4 w-4" /> Nova Venda
           </Button>
         </div>
 
-        <div className="flex items-center">
+        {/* Search */}
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar vendas..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
+            className="pl-9 input-premium"
           />
         </div>
 
-        <Card>
+        {/* Table */}
+        <Card className="glass-card-hover border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden">
           <CardContent className="p-0">
-            <div className="table-wrapper overflow-x-auto">
+            <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b">
-                    <th className="p-4 text-left font-medium">Cliente</th>
-                    <th className="p-4 text-right font-medium">Valor</th>
-                    <th className="p-4 text-left font-medium">Campanha</th>
-                    <th className="p-4 text-left font-medium">Produto</th>
-                    <th className="p-4 text-left font-medium">Data</th>
-                    <th className="p-4 text-right font-medium">Ações</th>
+                  <tr className="border-b border-border/50 bg-muted/30">
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliente</th>
+                    <th className="p-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Valor</th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campanha</th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Produto</th>
+                    <th className="p-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Data</th>
+                    <th className="p-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-border/30">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center">
-                        Carregando vendas...
+                      <td colSpan={6} className="p-8 text-center">
+                        <div className="premium-loader mx-auto" />
                       </td>
                     </tr>
                   ) : filteredSales.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center">
+                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
                         Nenhuma venda encontrada
                       </td>
                     </tr>
                   ) : (
                     filteredSales.map((sale) => (
-                      <tr key={sale.id} className="border-b">
-                        <td className="p-4">{sale.lead_name}</td>
-                        <td className="p-4 text-right font-medium">{formatCurrency(sale.value)}</td>
-                        <td className="p-4">{sale.campaign}</td>
-                        <td className="p-4">{sale.product || '-'}</td>
-                        <td className="p-4">{sale.date ? formatDate(sale.date) : '-'}</td>
+                      <tr key={sale.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="p-4 font-medium text-foreground">{sale.lead_name}</td>
+                        <td className="p-4 text-right">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 font-semibold">
+                            {formatCurrency(sale.value)}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-sm">
+                            {sale.campaign}
+                          </span>
+                        </td>
+                        <td className="p-4 text-muted-foreground">{sale.product || '-'}</td>
+                        <td className="p-4 text-muted-foreground">{sale.date ? formatDate(sale.date) : '-'}</td>
                         <td className="p-4 text-right whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleOpenEditDialog(sale)}
                             title="Editar venda"
+                            className="hover:bg-primary/10 hover:text-primary"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -299,6 +317,7 @@ const Sales = () => {
                             size="icon"
                             onClick={() => handleDeleteSale(sale.id)}
                             title="Excluir venda"
+                            className="hover:bg-rose-500/10 hover:text-rose-500"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -313,9 +332,9 @@ const Sales = () => {
         </Card>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-xl border-border/50">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl">
                 {dialogMode === 'add' ? 'Adicionar Nova Venda' : 'Editar Venda'}
               </DialogTitle>
               <DialogDescription>
@@ -336,6 +355,7 @@ const Sales = () => {
                   value={currentSale.value}
                   onChange={handleInputChange}
                   placeholder="0.00"
+                  className="input-premium"
                 />
               </div>
               <div className="grid gap-2">
@@ -346,6 +366,7 @@ const Sales = () => {
                   type="date"
                   value={currentSale.date as string}
                   onChange={handleInputChange}
+                  className="input-premium"
                 />
               </div>
               <div className="grid gap-2">
@@ -354,7 +375,7 @@ const Sales = () => {
                   value={currentSale.lead_id} 
                   onValueChange={(value) => handleSelectChange('lead_id', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="input-premium">
                     <SelectValue placeholder="Selecione um lead" />
                   </SelectTrigger>
                   <SelectContent>
@@ -372,7 +393,7 @@ const Sales = () => {
                   value={currentSale.campaign} 
                   onValueChange={(value) => handleSelectChange('campaign', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="input-premium">
                     <SelectValue placeholder="Selecione uma campanha" />
                   </SelectTrigger>
                   <SelectContent>
@@ -392,6 +413,7 @@ const Sales = () => {
                   value={currentSale.product || ''}
                   onChange={handleInputChange}
                   placeholder="Nome do produto vendido"
+                  className="input-premium"
                 />
               </div>
               <div className="grid gap-2">
@@ -402,6 +424,7 @@ const Sales = () => {
                   value={currentSale.notes || ''}
                   onChange={handleInputChange}
                   placeholder="Observações sobre a venda"
+                  className="input-premium min-h-[80px]"
                 />
               </div>
             </div>
@@ -409,7 +432,7 @@ const Sales = () => {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSaveSale}>
+              <Button onClick={handleSaveSale} className="premium-button">
                 {dialogMode === 'add' ? 'Adicionar' : 'Atualizar'}
               </Button>
             </DialogFooter>
