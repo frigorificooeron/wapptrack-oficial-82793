@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { getCampaigns, addCampaign, updateCampaign, deleteCampaign } from '@/services/campaignService';
 import { Campaign } from '@/types';
 import { buildUtmUrl, generateTrackingUrl } from '@/lib/utils';
-import { Plus, Tags } from 'lucide-react';
+import { Plus, Tags, Link2 } from 'lucide-react';
 import { toast } from "sonner";
 import GlobalKeywordsSettings from '@/components/campaigns/GlobalKeywordsSettings';
 import CampaignForm from '@/components/campaigns/CampaignForm';
@@ -230,77 +230,87 @@ const Campaigns = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Links de rastreamento</h1>
-            <p className="text-muted-foreground">Crie e gerencie links de rastreamento com tracking avançado e máximos parâmetros</p>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center ring-1 ring-primary/20">
+              <Link2 className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Links de rastreamento</h1>
+              <p className="text-sm text-muted-foreground">Crie e gerencie links com tracking avançado</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button 
               variant="outline" 
               onClick={() => setIsGlobalKeywordsOpen(true)}
               title="Configurações de Tags Globais"
+              className="border-border/50 hover:bg-muted/50"
             >
               <Tags className="mr-2 h-4 w-4" /> Configurar Tags
             </Button>
-            <Button onClick={handleOpenAddDialog}>
-              <Plus className="mr-2 h-4 w-4" /> Novo Link de rastreamento
+            <Button onClick={handleOpenAddDialog} className="premium-button gap-2">
+              <Plus className="h-4 w-4" /> Novo Link
             </Button>
           </div>
         </div>
 
         {/* BLOCO PARA VISUALIZAR LINK LIMPO DA CAMPANHA SELECIONADA */}
         {selectedCampaign && (
-          <div className="mt-2 bg-card border border-border rounded px-4 py-3">
-            <span className="font-semibold text-foreground">Link de rastreamento limpo:</span>
-            <div className="flex gap-2 mt-1">
+          <div className="glass-card-hover rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm px-5 py-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-semibold text-foreground text-sm">Link de rastreamento selecionado</span>
+            </div>
+            <div className="flex gap-2">
               <input
-                className="w-full px-2 py-1 border border-input rounded bg-muted text-foreground text-sm"
+                className="flex-1 px-3 py-2 border border-border/50 rounded-lg bg-muted/50 text-foreground text-sm font-mono"
                 readOnly
                 value={getTrackingUrl(selectedCampaign)}
               />
-              <Button variant="outline" onClick={() => handleCopyTrackingUrl(selectedCampaign)}>
+              <Button variant="outline" onClick={() => handleCopyTrackingUrl(selectedCampaign)} className="shrink-0">
                 Copiar
               </Button>
             </div>
             <Button
               size="sm"
-              className="mt-2"
               variant="secondary"
               onClick={() => setShowCustomUtm((v) => !v)}
+              className="text-xs"
             >
               {showCustomUtm ? "Fechar UTMs customizados" : "Gerar link com UTMs customizados"}
             </Button>
             {showCustomUtm && (
-              <div className="mt-3 space-y-3">
+              <div className="mt-3 space-y-3 pt-3 border-t border-border/30">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_source"
+                  <input className="input-premium text-sm" placeholder="utm_source"
                     value={customUtms.utm_source}
                     onChange={e => setCustomUtms({ ...customUtms, utm_source: e.target.value })}
                   />
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_medium"
+                  <input className="input-premium text-sm" placeholder="utm_medium"
                     value={customUtms.utm_medium}
                     onChange={e => setCustomUtms({ ...customUtms, utm_medium: e.target.value })}
                   />
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_campaign"
+                  <input className="input-premium text-sm" placeholder="utm_campaign"
                     value={customUtms.utm_campaign}
                     onChange={e => setCustomUtms({ ...customUtms, utm_campaign: e.target.value })}
                   />
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_content"
+                  <input className="input-premium text-sm" placeholder="utm_content"
                     value={customUtms.utm_content}
                     onChange={e => setCustomUtms({ ...customUtms, utm_content: e.target.value })}
                   />
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="utm_term"
+                  <input className="input-premium text-sm" placeholder="utm_term"
                     value={customUtms.utm_term}
                     onChange={e => setCustomUtms({ ...customUtms, utm_term: e.target.value })}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="gclid (Google Ads)"
+                  <input className="input-premium text-sm" placeholder="gclid (Google Ads)"
                     value={customUtms.gclid}
                     onChange={e => setCustomUtms({ ...customUtms, gclid: e.target.value })}
                   />
-                  <input className="border border-input bg-background text-foreground px-2 py-1 rounded placeholder:text-muted-foreground" placeholder="fbclid (Facebook Ads)"
+                  <input className="input-premium text-sm" placeholder="fbclid (Facebook Ads)"
                     value={customUtms.fbclid}
                     onChange={e => setCustomUtms({ ...customUtms, fbclid: e.target.value })}
                   />
