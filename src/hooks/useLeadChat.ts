@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp';
@@ -15,13 +15,41 @@ export interface LeadMessage {
   created_at: string;
 }
 
+// Cache de instância para evitar múltiplas queries
+let cachedInstance: { name: string; expiresAt: number } | null = null;
+
+const getCachedInstance = async (): Promise<string | null> => {
+  const now = Date.now();
+  if (cachedInstance && cachedInstance.expiresAt > now) {
+    return cachedInstance.name;
+  }
+
+  const { data: instances, error } = await supabase
+    .from('whatsapp_instances')
+    .select('instance_name')
+    .eq('status', 'connected')
+    .limit(1);
+
+  if (error || !instances || instances.length === 0) {
+    cachedInstance = null;
+    return null;
+  }
+
+  cachedInstance = {
+    name: instances[0].instance_name,
+    expiresAt: now + 60_000, // Cache por 1 minuto
+  };
+
+  return cachedInstance.name;
+};
+
 export const useLeadChat = (leadId: string, leadPhone: string) => {
   const [messages, setMessages] = useState<LeadMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const optimisticIdsRef = useRef<Set<string>>(new Set());
 
-  // Buscar mensagens iniciais
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!leadId) {
       setMessages([]);
       setLoading(false);
@@ -44,9 +72,8 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
 
-  // Inscrever-se para atualizações em tempo real
   useEffect(() => {
     if (!leadId) {
       setMessages([]);
@@ -67,10 +94,23 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
           filter: `lead_id=eq.${leadId}`,
         },
         (payload) => {
-          console.log('📨 Nova mensagem em tempo real:', payload);
-          
           if (payload.eventType === 'INSERT') {
-            setMessages((prev) => [...prev, payload.new as LeadMessage]);
+            const newMsg = payload.new as LeadMessage;
+            // Se é uma mensagem otimista que já foi confirmada, atualiza em vez de duplicar
+            setMessages((prev) => {
+              const optimisticIdx = prev.findIndex(
+                (m) => optimisticIdsRef.current.has(m.id) && m.message_text === newMsg.message_text
+              );
+              if (optimisticIdx !== -1) {
+                optimisticIdsRef.current.delete(prev[optimisticIdx].id);
+                const updated = [...prev];
+                updated[optimisticIdx] = newMsg;
+                return updated;
+              }
+              // Evita duplicatas reais
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
           } else if (payload.eventType === 'UPDATE') {
             setMessages((prev) =>
               prev.map((msg) =>
@@ -85,130 +125,163 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [leadId]);
+  }, [leadId, fetchMessages]);
 
-  // Enviar mensagem de texto
-  const sendMessage = async (messageText: string) => {
-    if (!messageText.trim()) return;
+  // Enviar mensagem de texto com atualização otimista
+  const sendMessage = useCallback(
+    async (messageText: string) => {
+      if (!messageText.trim() || !leadId) return;
 
-    try {
-      setSending(true);
-
-      // Buscar instância ativa do usuário
-      const { data: instances, error: instanceError } = await supabase
-        .from('whatsapp_instances')
-        .select('instance_name')
-        .eq('status', 'connected')
-        .limit(1);
-
-      if (instanceError || !instances || instances.length === 0) {
+      const instanceName = await getCachedInstance();
+      if (!instanceName) {
         toast.error('Nenhuma instância WhatsApp conectada');
         return;
       }
 
-      const instanceName = instances[0].instance_name;
       const normalizedPhone = normalizeWhatsAppNumber(leadPhone);
-
       if (!normalizedPhone) {
         toast.error('Número de telefone inválido');
         return;
       }
 
-      // Chamar edge function para enviar mensagem
-      const { data, error } = await supabase.functions.invoke('evolution-send-message', {
-        body: {
-          instanceName,
-          phone: normalizedPhone,
-          message: messageText,
-          leadId,
-        },
-      });
+      // Criar mensagem otimista IMEDIATAMENTE
+      const optimisticId = `optimistic-${Date.now()}`;
+      const optimisticMessage: LeadMessage = {
+        id: optimisticId,
+        lead_id: leadId,
+        message_text: messageText,
+        is_from_me: true,
+        sent_at: new Date().toISOString(),
+        status: 'sending',
+        whatsapp_message_id: null,
+        instance_name: instanceName,
+        created_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
-
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao enviar mensagem');
-      }
-
-      console.log('✅ Mensagem enviada com sucesso:', data);
-      toast.success('Mensagem enviada!');
-    } catch (error) {
-      console.error('❌ Erro ao enviar mensagem:', error);
-      toast.error('Erro ao enviar mensagem');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Enviar mensagem com mídia
-  const sendMediaMessage = async (
-    file: File,
-    mediaType: 'image' | 'video' | 'audio',
-    caption?: string
-  ) => {
-    try {
+      optimisticIdsRef.current.add(optimisticId);
+      setMessages((prev) => [...prev, optimisticMessage]);
       setSending(true);
 
-      // Buscar instância ativa do usuário
-      const { data: instances, error: instanceError } = await supabase
-        .from('whatsapp_instances')
-        .select('instance_name')
-        .eq('status', 'connected')
-        .limit(1);
+      try {
+        const { data, error } = await supabase.functions.invoke('evolution-send-message', {
+          body: {
+            instanceName,
+            phone: normalizedPhone,
+            message: messageText,
+            leadId,
+          },
+        });
 
-      if (instanceError || !instances || instances.length === 0) {
+        if (error || !data?.success) {
+          throw new Error(data?.error || 'Erro ao enviar mensagem');
+        }
+
+        // Atualizar mensagem otimista com dados reais
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === optimisticId
+              ? { ...msg, id: data.message?.id || optimisticId, status: 'sent' }
+              : msg
+          )
+        );
+        optimisticIdsRef.current.delete(optimisticId);
+      } catch (error) {
+        console.error('❌ Erro ao enviar mensagem:', error);
+        // Marcar como falha
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === optimisticId ? { ...msg, status: 'failed' } : msg))
+        );
+        toast.error('Erro ao enviar mensagem');
+      } finally {
+        setSending(false);
+      }
+    },
+    [leadId, leadPhone]
+  );
+
+  // Enviar mídia com atualização otimista
+  const sendMediaMessage = useCallback(
+    async (file: File, mediaType: 'image' | 'video' | 'audio', caption?: string) => {
+      if (!leadId) return;
+
+      const instanceName = await getCachedInstance();
+      if (!instanceName) {
         toast.error('Nenhuma instância WhatsApp conectada');
         return;
       }
 
-      const instanceName = instances[0].instance_name;
       const normalizedPhone = normalizeWhatsAppNumber(leadPhone);
-
       if (!normalizedPhone) {
         toast.error('Número de telefone inválido');
         return;
       }
 
-      // Converter arquivo para base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const displayText =
+        caption || (mediaType === 'image' ? '[Imagem]' : mediaType === 'video' ? '[Vídeo]' : '[Áudio]');
 
-      // Chamar edge function para enviar mídia
-      const { data, error } = await supabase.functions.invoke('evolution-send-message', {
-        body: {
-          instanceName,
-          phone: normalizedPhone,
-          leadId,
-          mediaType,
-          mediaBase64: base64,
-          mimeType: file.type,
-          fileName: file.name,
-          caption,
-        },
-      });
+      // Mensagem otimista
+      const optimisticId = `optimistic-${Date.now()}`;
+      const optimisticMessage: LeadMessage = {
+        id: optimisticId,
+        lead_id: leadId,
+        message_text: displayText,
+        is_from_me: true,
+        sent_at: new Date().toISOString(),
+        status: 'sending',
+        whatsapp_message_id: null,
+        instance_name: instanceName,
+        created_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      optimisticIdsRef.current.add(optimisticId);
+      setMessages((prev) => [...prev, optimisticMessage]);
+      setSending(true);
 
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao enviar mídia');
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('evolution-send-message', {
+          body: {
+            instanceName,
+            phone: normalizedPhone,
+            leadId,
+            mediaType,
+            mediaBase64: base64,
+            mimeType: file.type,
+            fileName: file.name,
+            caption,
+          },
+        });
+
+        if (error || !data?.success) {
+          throw new Error(data?.error || 'Erro ao enviar mídia');
+        }
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === optimisticId
+              ? { ...msg, id: data.message?.id || optimisticId, status: 'sent' }
+              : msg
+          )
+        );
+        optimisticIdsRef.current.delete(optimisticId);
+      } catch (error) {
+        console.error('❌ Erro ao enviar mídia:', error);
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === optimisticId ? { ...msg, status: 'failed' } : msg))
+        );
+        toast.error('Erro ao enviar mídia');
+      } finally {
+        setSending(false);
       }
-
-      console.log('✅ Mídia enviada com sucesso:', data);
-      toast.success('Mídia enviada!');
-    } catch (error) {
-      console.error('❌ Erro ao enviar mídia:', error);
-      toast.error('Erro ao enviar mídia');
-    } finally {
-      setSending(false);
-    }
-  };
+    },
+    [leadId, leadPhone]
+  );
 
   return {
     messages,
@@ -218,3 +291,4 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
     sendMediaMessage,
   };
 };
+
