@@ -98,11 +98,12 @@ serve(async (req) => {
       );
     }
 
-    // Buscar instância ativa
+    // Buscar instância ativa pertencente ao usuário autenticado
     const { data: instance, error: instanceError } = await supabase
       .from('whatsapp_instances')
       .select('*')
       .eq('instance_name', instanceName)
+      .eq('user_id', userId)
       .eq('status', 'connected')
       .single();
 
