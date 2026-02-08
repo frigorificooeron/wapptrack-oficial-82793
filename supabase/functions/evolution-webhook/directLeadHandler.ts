@@ -97,6 +97,26 @@ export const handleDirectLead = async ({
       return;
     }
 
+    // Step 5.1: Save the first inbound message into chat history
+    if (cleanedMessage?.trim()) {
+      const { error: messageError } = await supabase
+        .from('lead_messages')
+        .insert({
+          lead_id: newLead.id,
+          message_text: cleanedMessage,
+          is_from_me: false,
+          whatsapp_message_id: message.key?.id || null,
+          instance_name: instanceName,
+          status: 'received',
+        });
+
+      if (messageError) {
+        console.error('❌ [DIRECT LEAD] Failed to save first message in lead_messages:', messageError);
+      } else {
+        console.log('✅ [DIRECT LEAD] First message saved in lead_messages');
+      }
+    }
+
     // Step 6: Mark click as converted
     if (clickData) {
       await markClickConverted(supabase, clickData, newLead.id);
