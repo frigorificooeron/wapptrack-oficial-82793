@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/MainLayout';
 import { Lead } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,12 +15,21 @@ import {
 
 const Conversations = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchLeads = async () => {
+  const navSelectedLeadId = useMemo(() => {
+    const state = location.state as { selectedLeadId?: string } | null;
+    return state?.selectedLeadId ?? null;
+  }, [location.state]);
+
+  const lastConsumedNavIdRef = useRef<string | null>(null);
+
+  const fetchLeads = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
@@ -29,31 +38,35 @@ const Conversations = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-
-      const leadsData = (data || []) as Lead[];
-      setLeads(leadsData);
-
-      // Se veio um lead selecionado via navegação, seleciona ele
-      const state = location.state as { selectedLeadId?: string } | null;
-      if (state?.selectedLeadId) {
-        const leadToSelect = leadsData.find(l => l.id === state.selectedLeadId);
-        if (leadToSelect) {
-          setSelectedLead(leadToSelect);
-        }
-        // Limpar o state para não selecionar novamente em reloads
-        window.history.replaceState({}, document.title);
-      }
+      setLeads((data || []) as Lead[]);
     } catch (error) {
       console.error('Erro ao carregar leads:', error);
       toast.error('Erro ao carregar conversas');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
+  // Carregar leads uma vez (evita loop de loading)
   useEffect(() => {
     fetchLeads();
+  }, [fetchLeads]);
 
+  // Consumir state de navegação (Leads -> Conversas) sem reprocessar em loop
+  useEffect(() => {
+    if (!navSelectedLeadId) return;
+    if (lastConsumedNavIdRef.current === navSelectedLeadId) return;
+    if (leads.length === 0) return;
+
+    const leadToSelect = leads.find((l) => l.id === navSelectedLeadId) ?? null;
+    if (leadToSelect) setSelectedLead(leadToSelect);
+
+    lastConsumedNavIdRef.current = navSelectedLeadId;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [navSelectedLeadId, leads, navigate, location.pathname]);
+
+  // Assinatura realtime: não deve depender de selectedLead (senão cria subscribe/unsubscribe infinito)
+  useEffect(() => {
     const channel = supabase
       .channel('conversations-leads-changes')
       .on(
@@ -61,28 +74,26 @@ const Conversations = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'leads'
+          table: 'leads',
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newLead = payload.new as Lead;
-            setLeads(prev => [newLead, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
+            setLeads((prev) => [newLead, ...prev]);
+            return;
+          }
+
+          if (payload.eventType === 'UPDATE') {
             const updatedLead = payload.new as Lead;
-            setLeads(prev => prev.map(lead =>
-              lead.id === updatedLead.id ? updatedLead : lead
-            ));
-            
-            if (selectedLead && selectedLead.id === updatedLead.id) {
-              setSelectedLead(updatedLead);
-            }
-          } else if (payload.eventType === 'DELETE') {
+            setLeads((prev) => prev.map((lead) => (lead.id === updatedLead.id ? updatedLead : lead)));
+            setSelectedLead((prev) => (prev?.id === updatedLead.id ? updatedLead : prev));
+            return;
+          }
+
+          if (payload.eventType === 'DELETE') {
             const deletedLead = payload.old as Lead;
-            setLeads(prev => prev.filter(lead => lead.id !== deletedLead.id));
-            
-            if (selectedLead && selectedLead.id === deletedLead.id) {
-              setSelectedLead(null);
-            }
+            setLeads((prev) => prev.filter((lead) => lead.id !== deletedLead.id));
+            setSelectedLead((prev) => (prev?.id === deletedLead.id ? null : prev));
           }
         }
       )
@@ -91,7 +102,8 @@ const Conversations = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedLead, location.state]);
+  }, []);
+
 
   const filteredLeads = leads.filter((lead) => {
     const searchLower = searchTerm.toLowerCase();

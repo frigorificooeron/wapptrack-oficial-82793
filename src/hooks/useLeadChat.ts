@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { normalizeWhatsAppNumber } from '@/lib/whatsapp';
 
 export interface LeadMessage {
   id: string;
@@ -106,12 +107,18 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
       }
 
       const instanceName = instances[0].instance_name;
+      const normalizedPhone = normalizeWhatsAppNumber(leadPhone);
+
+      if (!normalizedPhone) {
+        toast.error('Número de telefone inválido');
+        return;
+      }
 
       // Chamar edge function para enviar mensagem
       const { data, error } = await supabase.functions.invoke('evolution-send-message', {
         body: {
           instanceName,
-          phone: leadPhone,
+          phone: normalizedPhone,
           message: messageText,
           leadId,
         },
@@ -155,6 +162,12 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
       }
 
       const instanceName = instances[0].instance_name;
+      const normalizedPhone = normalizeWhatsAppNumber(leadPhone);
+
+      if (!normalizedPhone) {
+        toast.error('Número de telefone inválido');
+        return;
+      }
 
       // Converter arquivo para base64
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -171,7 +184,7 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
       const { data, error } = await supabase.functions.invoke('evolution-send-message', {
         body: {
           instanceName,
-          phone: leadPhone,
+          phone: normalizedPhone,
           leadId,
           mediaType,
           mediaBase64: base64,
