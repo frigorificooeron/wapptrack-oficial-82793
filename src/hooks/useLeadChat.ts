@@ -83,44 +83,58 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
 
     fetchMessages();
 
+    // Canal realtime para mensagens deste lead
+    const channelName = `lead-messages-realtime-${leadId}-${Date.now()}`;
     const channel = supabase
-      .channel(`lead-messages-${leadId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'lead_messages',
           filter: `lead_id=eq.${leadId}`,
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newMsg = payload.new as LeadMessage;
+          const newMsg = payload.new as LeadMessage;
+          console.log('📩 Nova mensagem via realtime:', newMsg.message_text?.substring(0, 30));
+          
+          setMessages((prev) => {
             // Se é uma mensagem otimista que já foi confirmada, atualiza em vez de duplicar
-            setMessages((prev) => {
-              const optimisticIdx = prev.findIndex(
-                (m) => optimisticIdsRef.current.has(m.id) && m.message_text === newMsg.message_text
-              );
-              if (optimisticIdx !== -1) {
-                optimisticIdsRef.current.delete(prev[optimisticIdx].id);
-                const updated = [...prev];
-                updated[optimisticIdx] = newMsg;
-                return updated;
-              }
-              // Evita duplicatas reais
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === payload.new.id ? (payload.new as LeadMessage) : msg
-              )
+            const optimisticIdx = prev.findIndex(
+              (m) => optimisticIdsRef.current.has(m.id) && m.message_text === newMsg.message_text
             );
-          }
+            if (optimisticIdx !== -1) {
+              optimisticIdsRef.current.delete(prev[optimisticIdx].id);
+              const updated = [...prev];
+              updated[optimisticIdx] = newMsg;
+              return updated;
+            }
+            // Evita duplicatas reais
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'lead_messages',
+          filter: `lead_id=eq.${leadId}`,
+        },
+        (payload) => {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === payload.new.id ? (payload.new as LeadMessage) : msg
+            )
+          );
+        }
+      )
+      .subscribe((status) => {
+        console.log(`📡 Realtime lead_messages status: ${status}`);
+      });
 
     return () => {
       supabase.removeChannel(channel);
