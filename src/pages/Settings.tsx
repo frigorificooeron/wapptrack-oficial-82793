@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import MainLayout from '@/components/MainLayout';
@@ -6,6 +5,7 @@ import CompanySettings from '@/components/settings/CompanySettings';
 import ThemeSettings from '@/components/settings/ThemeSettings';
 import MultipleInstancesSettings from '@/components/settings/MultipleInstancesSettings';
 import FacebookMetaSettings from '@/components/settings/FacebookMetaSettings';
+import NotificationSoundSettings from '@/components/settings/NotificationSoundSettings';
 import { useSettings } from '@/hooks/useSettings';
 import { Settings as SettingsIcon } from 'lucide-react';
 
@@ -57,6 +57,8 @@ const Settings = () => {
             theme={formData.theme}
             onThemeChange={handleThemeChange}
           />
+
+          <NotificationSoundSettings />
 
           <FacebookMetaSettings />
 
