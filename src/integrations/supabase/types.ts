@@ -416,6 +416,7 @@ export type Database = {
           id: string
           instance_name: string | null
           is_from_me: boolean
+          is_read: boolean | null
           lead_id: string
           message_text: string
           sent_at: string
@@ -427,6 +428,7 @@ export type Database = {
           id?: string
           instance_name?: string | null
           is_from_me?: boolean
+          is_read?: boolean | null
           lead_id: string
           message_text: string
           sent_at?: string
@@ -438,6 +440,7 @@ export type Database = {
           id?: string
           instance_name?: string | null
           is_from_me?: boolean
+          is_read?: boolean | null
           lead_id?: string
           message_text?: string
           sent_at?: string
@@ -492,6 +495,7 @@ export type Database = {
           status: string | null
           timezone: string | null
           tracking_method: string | null
+          unread_count: number | null
           updated_at: string
           user_id: string
           utm_campaign: string | null
@@ -538,6 +542,7 @@ export type Database = {
           status?: string | null
           timezone?: string | null
           tracking_method?: string | null
+          unread_count?: number | null
           updated_at?: string
           user_id: string
           utm_campaign?: string | null
@@ -584,6 +589,7 @@ export type Database = {
           status?: string | null
           timezone?: string | null
           tracking_method?: string | null
+          unread_count?: number | null
           updated_at?: string
           user_id?: string
           utm_campaign?: string | null

@@ -9,13 +9,17 @@ import { ptBR } from 'date-fns/locale';
 import { Search, MessageCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+interface LeadWithUnread extends Lead {
+  unread_count?: number;
+}
+
 interface ConversationListProps {
-  leads: Lead[];
+  leads: LeadWithUnread[];
   isLoading: boolean;
-  selectedLead: Lead | null;
+  selectedLead: LeadWithUnread | null;
   searchTerm: string;
   onSearchChange: (value: string) => void;
-  onSelectLead: (lead: Lead) => void;
+  onSelectLead: (lead: LeadWithUnread) => void;
 }
 
 export const ConversationList: React.FC<ConversationListProps> = ({
@@ -89,17 +93,33 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                   selectedLead?.id === lead.id && 'bg-accent'
                 )}
               >
-                <Avatar className="h-12 w-12 flex-shrink-0">
-                  <AvatarImage src={lead.profile_picture_url || undefined} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                    {getInitials(lead.name)}
-                  </AvatarFallback>
-                </Avatar>
+                {/* Avatar com badge de não lidas */}
+                <div className="relative flex-shrink-0">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={lead.profile_picture_url || undefined} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                      {getInitials(lead.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {(lead.unread_count ?? 0) > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center animate-in zoom-in-50 duration-200">
+                      {(lead.unread_count ?? 0) > 99 ? '99+' : lead.unread_count}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium truncate">{lead.name}</span>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                    <span className={cn(
+                      "truncate",
+                      (lead.unread_count ?? 0) > 0 ? "font-bold" : "font-medium"
+                    )}>
+                      {lead.name}
+                    </span>
+                    <span className={cn(
+                      "text-xs flex-shrink-0",
+                      (lead.unread_count ?? 0) > 0 ? "text-primary font-semibold" : "text-muted-foreground"
+                    )}>
                       {formatMessageDate(lead.updated_at)}
                     </span>
                   </div>
@@ -107,7 +127,12 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                     {formatBrazilianPhone(lead.phone)}
                   </p>
                   {lead.last_message && (
-                    <p className="text-sm text-muted-foreground truncate mt-1">
+                    <p className={cn(
+                      "text-sm truncate mt-1",
+                      (lead.unread_count ?? 0) > 0 
+                        ? "text-foreground font-medium" 
+                        : "text-muted-foreground"
+                    )}>
                       {lead.last_message}
                     </p>
                   )}
