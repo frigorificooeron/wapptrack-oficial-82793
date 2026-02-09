@@ -1,225 +1,177 @@
 
-# Plano Completo para App 100% Profissional
 
-Este plano aborda **segurança, configuração, performance e qualidade de código** para transformar seu sistema em uma solução de nível empresarial.
+# Plano: Sistema Completo de Conversas com Notificações e Sons
 
----
+## Resumo do Problema
 
-## Resumo Executivo
-
-Identifiquei **5 áreas críticas** que precisam de atenção para o funcionamento profissional completo:
-
-| Área | Problemas Encontrados | Prioridade |
-|------|----------------------|------------|
-| Segurança do Banco | 6 políticas RLS muito permissivas | Alta |
-| Vulnerabilidades de Funções | 3 funções SECURITY DEFINER sem proteção | Alta |
-| URLs Hardcoded | 4 arquivos com URLs fixas que deveriam usar secrets | Média |
-| Configuração do Supabase | OTP longo, senhas vazadas sem proteção | Média |
-| Logs com Dados Sensíveis | IP, user agent, fbclid expostos em logs | Média |
+O sistema de conversas precisa de melhorias para funcionar como o WhatsApp:
+1. As mensagens não estão aparecendo corretamente no histórico
+2. Não há indicador de mensagens não lidas
+3. Não há som quando chega uma mensagem nova
 
 ---
 
-## Fase 1: Correções de Segurança (Crítico)
+## Solução Proposta
 
-### 1.1 Corrigir Políticas RLS Permissivas
+### 1. Corrigir Exibição de Mensagens
 
-**Problema**: Tabelas `campaign_clicks`, `pending_leads`, `utm_sessions`, `ctwa_tracking`, `utm_clicks`, `campaign_tokens` têm políticas `WITH CHECK (true)` ou `USING (true)` permitindo acesso irrestrito.
+**Diagnóstico:** O banco de dados está funcionando corretamente (confirmado via query direta). O problema pode estar na query de RLS ou na forma como os dados são carregados.
 
-**Correções**:
+**Mudanças:**
+- Adicionar logs detalhados para debug no hook `useLeadChat`
+- Verificar se a política RLS está bloqueando acesso
+- Garantir que o `lead_id` passado está correto
 
-- **campaign_clicks**: Restringir SELECT/UPDATE para verificar ownership via campaigns
-- **pending_leads**: Restringir INSERT para validar campaign_id pertence ao usuário ou webhook
-- **ctwa_tracking/utm_sessions/utm_clicks**: Manter INSERT público (necessário para tracking) mas proteger dados sensíveis
+---
 
-### 1.2 Proteger Funções SECURITY DEFINER
+### 2. Sistema de Mensagens Não Lidas
 
-**Problema**: Funções `get_token_permissions`, `deactivate_shared_token`, `create_shared_access_token` não têm `SET search_path`, permitindo ataques de privilege escalation.
+**Arquitetura:**
 
-**Correção**:
-```sql
-ALTER FUNCTION get_token_permissions(VARCHAR) SET search_path = public;
-ALTER FUNCTION deactivate_shared_token(UUID) SET search_path = public;
-ALTER FUNCTION create_shared_access_token(...) SET search_path = public;
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    BANCO DE DADOS                            │
+├─────────────────────────────────────────────────────────────┤
+│  leads                                                       │
+│  └── unread_count (INTEGER, default 0)                      │
+│                                                              │
+│  lead_messages                                               │
+│  └── is_read (BOOLEAN, default false para is_from_me=false) │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 1.3 Corrigir Autenticação da Edge Function facebook-conversions
+**Novos Campos no Banco:**
+- `leads.unread_count` (INTEGER) - Contador de mensagens não lidas
+- `lead_messages.is_read` (BOOLEAN) - Se a mensagem foi lida
 
-**Problema**: Linha 145 usa `getUser()` sem token, causando falhas de autenticação.
-
-**Correção**: Extrair token do header e passar para `getUser(token)`.
-
----
-
-## Fase 2: Configuração de URLs e Secrets
-
-### 2.1 Remover URLs Hardcoded da Evolution API
-
-**Arquivos afetados**:
-- `profilePictureHandler.ts` (linha 3): URL hardcoded
-- `EvolutionApiSettings.tsx` (linha 20): URL hardcoded
-
-**Correção**: Usar `EVOLUTION_API_URL` secret em todos os lugares.
-
-### 2.2 Atualizar profilePictureHandler.ts
-
-Substituir:
-```typescript
-const EVOLUTION_BASE_URL = "https://evoapi.workidigital.tech";
-```
-Por:
-```typescript
-const EVOLUTION_BASE_URL = Deno.env.get('EVOLUTION_API_URL') || "https://evoapi.workidigital.tech";
-```
+**Trigger Automático:**
+- Quando uma nova mensagem chega (`is_from_me = false`), incrementa `unread_count`
+- Quando o usuário abre a conversa, zera `unread_count` e marca mensagens como lidas
 
 ---
 
-## Fase 3: Logs e Privacidade (LGPD/GDPR)
+### 3. Sistema de Sons de Notificação
 
-### 3.1 Reduzir Logging de Dados Sensíveis
+**5 Sons Disponíveis:**
+1. `notification-1.mp3` - Som clássico (tipo WhatsApp)
+2. `notification-2.mp3` - Som suave
+3. `notification-3.mp3` - Som moderno
+4. `notification-4.mp3` - Som discreto
+5. `notification-5.mp3` - Som alegre
 
-**Problema**: `redirect-handler` loga IPs, user agents e fbclid em produção.
-
-**Correção**: Implementar log levels e hash de identificadores:
-
-```typescript
-const LOG_LEVEL = Deno.env.get('LOG_LEVEL') || 'info';
-
-// Hash para logs de debug
-function hashForLogging(value: string): string {
-  const hash = crypto.subtle.digestSync('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 8);
-}
-
-console.log('🔍 [REDIRECT] Click processado:', {
-  hasIp: !!ipAddress,
-  city: geoData.city,  // OK - não é PII isolado
-  country: geoData.country,
-  utmSource,  // OK - não é dado pessoal
-  hasFbclid: !!fbclid  // Não logar valor real
-});
-```
+**Configuração:**
+- Nova opção em Configurações para escolher o som
+- Opção para desativar sons
+- Armazenado em `localStorage` para persistência
 
 ---
 
-## Fase 4: Configurações do Supabase
+## Arquivos a Serem Criados/Modificados
 
-### 4.1 Habilitar Proteção contra Senhas Vazadas
+### Novos Arquivos
 
-**Ação**: No dashboard Supabase, ir em Authentication > Settings e habilitar "Leaked Password Protection".
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/hooks/useNotificationSound.ts` | Hook para reproduzir sons de notificação |
+| `src/hooks/useUnreadMessages.ts` | Hook global para gerenciar contagem de não lidas |
+| `src/components/settings/NotificationSoundSettings.tsx` | Componente para escolher som |
+| `public/sounds/notification-1.mp3` | Som de notificação 1 |
+| `public/sounds/notification-2.mp3` | Som de notificação 2 |
+| `public/sounds/notification-3.mp3` | Som de notificação 3 |
+| `public/sounds/notification-4.mp3` | Som de notificação 4 |
+| `public/sounds/notification-5.mp3` | Som de notificação 5 |
 
-### 4.2 Reduzir Tempo de Expiração do OTP
+### Arquivos Modificados
 
-**Ação**: Reduzir de 3600s para 600s (10 minutos) nas configurações de autenticação.
-
-### 4.3 Atualizar Versão do Postgres
-
-**Ação**: Verificar se há patches disponíveis e aplicar upgrade no dashboard Supabase.
-
----
-
-## Fase 5: Melhorias de Código e Arquitetura
-
-### 5.1 Finalizar Migração do directLeadHandler
-
-O arquivo ainda tem ~160 linhas e pode importar as funções modulares já criadas:
-
-```typescript
-// directLeadHandler.ts - Versão otimizada
-import { resolveUtmsFromMessage, markClickConverted } from './utmResolver.ts';
-import { resolveCampaign } from './campaignResolver.ts';
-import { createLead, checkExistingLead } from './leadCreator.ts';
-```
-
-### 5.2 Remover Código Duplicado entre handlers.ts e módulos
-
-O arquivo `handlers.ts` agora apenas re-exporta. Verificar se todos os imports nos outros arquivos estão atualizados.
-
----
-
-## Fase 6: Checklist de Deploy
-
-### Antes de ir para produção:
-
-- [ ] Migração SQL com correções de search_path executada
-- [ ] Políticas RLS corrigidas aplicadas
-- [ ] Secret `EVOLUTION_API_URL` configurada no Supabase
-- [ ] Secret `LOG_LEVEL` configurada como "info" (ou "warn" em produção)
-- [ ] Edge functions re-deployadas
-- [ ] Proteção de senhas vazadas habilitada
-- [ ] Tempo de OTP reduzido
-- [ ] Postgres atualizado
-
----
-
-## Arquivos a Serem Modificados
-
-| Arquivo | Tipo de Alteração |
-|---------|------------------|
-| Nova migração SQL | Corrigir RLS e search_path |
-| `profilePictureHandler.ts` | Usar secret EVOLUTION_API_URL |
-| `facebook-conversions/index.ts` | Corrigir autenticação |
-| `redirect-handler/index.ts` | Reduzir logging sensível |
-| `EvolutionApiSettings.tsx` | Usar secret ou buscar do backend |
+| Arquivo | Mudanças |
+|---------|----------|
+| `src/hooks/useLeadChat.ts` | Adicionar lógica para marcar mensagens como lidas ao abrir conversa |
+| `src/components/conversations/ConversationList.tsx` | Adicionar badge de não lidas ao lado do nome do contato |
+| `src/pages/Conversations.tsx` | Integrar hook de sons e atualizar contagem ao abrir conversa |
+| `src/pages/Settings.tsx` | Adicionar seção de configuração de sons |
 
 ---
 
 ## Detalhes Técnicos
 
-### Migração SQL Necessária
-
-```sql
--- 1. Corrigir search_path das funções SECURITY DEFINER
-ALTER FUNCTION public.get_token_permissions(VARCHAR) SET search_path = public;
-ALTER FUNCTION public.deactivate_shared_token(UUID) SET search_path = public;
-ALTER FUNCTION public.create_shared_access_token(VARCHAR, TEXT, JSONB, TIMESTAMPTZ) SET search_path = public;
-
--- 2. Melhorar política de campaign_clicks para SELECT
-DROP POLICY IF EXISTS "Allow read for all users" ON campaign_clicks;
-CREATE POLICY "Users view clicks from their campaigns" ON campaign_clicks
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM campaigns c 
-      WHERE c.id::text = campaign_clicks.campaign_id::text 
-      AND c.user_id = auth.uid()
-    )
-    OR (auth.jwt() ->> 'role' = 'service_role')
-  );
-
--- 3. Melhorar política de pending_leads para INSERT
-DROP POLICY IF EXISTS "Users insert pending leads" ON pending_leads;
-CREATE POLICY "Service role or webhook insert pending leads" ON pending_leads
-  FOR INSERT WITH CHECK (
-    (auth.jwt() ->> 'role' = 'service_role')
-  );
-```
-
-### Edge Function facebook-conversions - Correção
+### Hook useNotificationSound
 
 ```typescript
-// Linha 140-145 corrigida
-const token = authHeader.replace('Bearer ', '');
-const { data: userData, error: userError } = await supabase.auth.getUser(token);
+export const useNotificationSound = () => {
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [selectedSound, setSelectedSound] = useState('notification-1');
+  
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    const audio = new Audio(`/sounds/${selectedSound}.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(console.error);
+  }, [soundEnabled, selectedSound]);
+  
+  return { playNotificationSound, soundEnabled, setSoundEnabled, selectedSound, setSelectedSound };
+};
+```
 
-if (userError || !userData?.user) {
-  console.error('Authentication failed:', userError);
-  return new Response(JSON.stringify({
-    error: 'Unauthorized - Invalid token'
-  }), {
-    status: 401,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-}
+### Modificação na ConversationList
+
+```typescript
+// Dentro do componente de cada lead na lista
+<div className="relative">
+  <Avatar>...</Avatar>
+  {lead.unread_count > 0 && (
+    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+      {lead.unread_count > 9 ? '9+' : lead.unread_count}
+    </span>
+  )}
+</div>
+```
+
+### Migração SQL
+
+```sql
+-- Adicionar campo unread_count na tabela leads
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;
+
+-- Adicionar campo is_read na tabela lead_messages
+ALTER TABLE lead_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
+
+-- Trigger para incrementar contador quando mensagem chega
+CREATE OR REPLACE FUNCTION increment_unread_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_from_me = false THEN
+    UPDATE leads SET unread_count = unread_count + 1 WHERE id = NEW.lead_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_new_message_increment_unread
+AFTER INSERT ON lead_messages
+FOR EACH ROW EXECUTE FUNCTION increment_unread_count();
 ```
 
 ---
 
-## Resultado Esperado
+## Fluxo de Funcionamento
 
-Após implementar todas as fases:
+1. **Mensagem chega via webhook** → Salva em `lead_messages` com `is_from_me = false`
+2. **Trigger dispara** → Incrementa `unread_count` no lead
+3. **Realtime propaga** → Frontend recebe a nova mensagem e o contador atualizado
+4. **Som toca** → Hook `useNotificationSound` reproduz o som selecionado
+5. **Badge aparece** → Lista de conversas mostra o número de não lidas
+6. **Usuário abre conversa** → `unread_count` é zerado e mensagens marcadas como lidas
 
-- **Segurança**: Sistema protegido contra ataques comuns (SQL injection via search_path, RLS bypass, spam de dados)
-- **Privacidade**: Conformidade com LGPD/GDPR através de logs reduzidos
-- **Configuração**: URLs centralizadas em secrets, fáceis de alterar
-- **Performance**: Código modular, fácil de manter e escalar
-- **Monitoramento**: Logs estruturados com níveis apropriados
+---
+
+## Ordem de Implementação
+
+1. Adicionar campos no banco de dados (migração SQL)
+2. Criar arquivos de som no `/public/sounds/`
+3. Criar hook `useNotificationSound`
+4. Criar hook `useUnreadMessages`
+5. Atualizar `ConversationList` com badge de não lidas
+6. Atualizar `Conversations.tsx` para tocar som e zerar contador
+7. Criar componente de configuração de sons
+8. Atualizar página de Settings
 
