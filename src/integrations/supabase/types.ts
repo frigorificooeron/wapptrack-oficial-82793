@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agents: {
+        Row: {
+          created_at: string
+          funnel_keywords: Json | null
+          id: string
+          instance_name: string
+          is_active: boolean
+          max_history_messages: number
+          model: string
+          name: string
+          response_delay_ms: number
+          system_prompt: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          funnel_keywords?: Json | null
+          id?: string
+          instance_name: string
+          is_active?: boolean
+          max_history_messages?: number
+          model?: string
+          name: string
+          response_delay_ms?: number
+          system_prompt?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          funnel_keywords?: Json | null
+          id?: string
+          instance_name?: string
+          is_active?: boolean
+          max_history_messages?: number
+          model?: string
+          name?: string
+          response_delay_ms?: number
+          system_prompt?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaign_clicks: {
         Row: {
           campaign_id: string
@@ -284,6 +329,57 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_messages: {
+        Row: {
+          agent_id: string | null
+          content: string
+          created_at: string
+          id: string
+          instance_name: string | null
+          lead_id: string | null
+          phone: string
+          role: string
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          instance_name?: string | null
+          lead_id?: string | null
+          phone: string
+          role: string
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          instance_name?: string | null
+          lead_id?: string | null
+          phone?: string
+          role?: string
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ctwa_tracking: {
         Row: {
           campaign_id: string
@@ -409,6 +505,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      human_takeovers: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          id: string
+          is_active: boolean
+          lead_id: string | null
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          lead_id?: string | null
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          lead_id?: string | null
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "human_takeovers_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_messages: {
         Row: {

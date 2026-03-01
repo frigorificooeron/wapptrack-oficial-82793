@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.facebook-oauth-callback]
 verify_jwt = false
+
+[functions.ai-webhook]
+verify_jwt = false

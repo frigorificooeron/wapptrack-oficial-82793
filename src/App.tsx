@@ -17,6 +17,7 @@ import Login from "./pages/Login";
 import Redirect from "./pages/Redirect";
 import NotFound from "./pages/NotFound";
 import FacebookOAuth from "./pages/FacebookOAuth";
+import AIAgents from "./pages/AIAgents";
 
 import SharedLayout from "./layouts/SharedLayout";
 import { SharedAccessProvider } from "./context/SharedAccessContext";
@@ -79,6 +80,12 @@ const App = () => (
               <Route path="/settings" element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/ai-agents" element={
+                <ProtectedRoute>
+                  <AIAgents />
                 </ProtectedRoute>
               } />
               
