@@ -7,7 +7,8 @@ import {
   DollarSign,
   LogOut,
   Settings,
-  Link2
+  Link2,
+  Bot
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/context/AuthContext';
@@ -70,6 +71,13 @@ const AppSidebar = () => {
       icon: Link2,
       module: 'campaigns',
       current: location.pathname === '/campaigns'
+    },
+    {
+      name: 'Agentes IA',
+      href: '/ai-agents',
+      icon: Bot,
+      module: 'ai-agents',
+      current: location.pathname === '/ai-agents'
     },
     {
       name: 'Vendas',
