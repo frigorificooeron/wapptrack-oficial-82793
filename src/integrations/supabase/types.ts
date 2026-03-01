@@ -413,38 +413,53 @@ export type Database = {
       lead_messages: {
         Row: {
           created_at: string
+          file_name: string | null
           id: string
           instance_name: string | null
           is_from_me: boolean
           is_read: boolean | null
           lead_id: string
+          media_type: string | null
+          media_url: string | null
           message_text: string
+          mime_type: string | null
           sent_at: string
           status: string | null
+          user_id: string | null
           whatsapp_message_id: string | null
         }
         Insert: {
           created_at?: string
+          file_name?: string | null
           id?: string
           instance_name?: string | null
           is_from_me?: boolean
           is_read?: boolean | null
           lead_id: string
+          media_type?: string | null
+          media_url?: string | null
           message_text: string
+          mime_type?: string | null
           sent_at?: string
           status?: string | null
+          user_id?: string | null
           whatsapp_message_id?: string | null
         }
         Update: {
           created_at?: string
+          file_name?: string | null
           id?: string
           instance_name?: string | null
           is_from_me?: boolean
           is_read?: boolean | null
           lead_id?: string
+          media_type?: string | null
+          media_url?: string | null
           message_text?: string
+          mime_type?: string | null
           sent_at?: string
           status?: string | null
+          user_id?: string | null
           whatsapp_message_id?: string | null
         }
         Relationships: [
