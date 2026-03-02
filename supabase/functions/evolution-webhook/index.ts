@@ -58,7 +58,7 @@ serve(async (req) => {
     if (body.event === 'messages.upsert' && body.data) {
       const message = body.data;
       const remoteJid = message.key?.remoteJid;
-      let instanceName: string;
+      const remoteJidAlt = message.key?.remoteJidAlt || message.key?.participantAlt;
       const isFromMe = message.key?.fromMe;
       
       try {
@@ -91,7 +91,8 @@ serve(async (req) => {
         let messageContent: string;
         
         try {
-          realPhoneNumber = sanitizePhoneNumber(remoteJid.replace('@s.whatsapp.net', ''));
+          const jidForPhone = remoteJid?.endsWith('@lid') && remoteJidAlt ? remoteJidAlt : remoteJid;
+          realPhoneNumber = sanitizePhoneNumber((jidForPhone || '').replace(/@(s\.whatsapp\.net|lid|c\.us)$/i, ''));
           messageContent = sanitizeMessageContent(getMessageContent(message));
         } catch (error) {
           logSecurityEvent('Invalid phone number or message content', { 
@@ -112,10 +113,14 @@ serve(async (req) => {
         // Create phone variations and look for matching leads
         const phoneVariations = createPhoneSearchVariations(realPhoneNumber);
 
-        const { data: matchedLeads } = await supabase
+        const { data: matchedLeads, error: matchError } = await supabase
           .from('leads')
-          .select('*, campaigns!leads_campaign_id_fkey(conversion_keywords, cancellation_keywords)')
+          .select('*')
           .in('phone', phoneVariations);
+
+        if (matchError) {
+          console.error('❌ Erro ao buscar leads existentes:', matchError);
+        }
 
         if (matchedLeads && matchedLeads.length > 0) {
           console.log(`✅ Lead existente encontrado para ${realPhoneNumber}`);
