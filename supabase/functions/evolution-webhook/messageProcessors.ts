@@ -152,21 +152,37 @@ export const processClientMessage = async (params: {
         console.log(`✅ Updated lead ${lead.id} with message: ${cleanedMessage.substring(0, 50)}...`);
       }
 
-      // Salvar mensagem no histórico de chat (mensagem limpa)
-      const { error: messageError } = await supabase
-        .from('lead_messages')
-        .insert({
-          lead_id: lead.id,
-          message_text: cleanedMessage,
-          is_from_me: false,
-          whatsapp_message_id: message.key?.id,
-          instance_name: message.key?.remoteJid?.split('@')[0] || null,
-        });
+      // Salvar mensagem no histórico de chat (mensagem limpa, evitar duplicatas)
+      const clientMsgId = message.key?.id;
+      let skipClientInsert = false;
+      if (clientMsgId) {
+        const { data: existingMsg } = await supabase
+          .from('lead_messages')
+          .select('id')
+          .eq('whatsapp_message_id', clientMsgId)
+          .limit(1);
+        if (existingMsg && existingMsg.length > 0) {
+          skipClientInsert = true;
+          console.log(`⏭️ Client message ${clientMsgId} already exists, skipping`);
+        }
+      }
 
-      if (messageError) {
-        console.error(`❌ Error saving message for lead ${lead.id}:`, messageError);
-      } else {
-        console.log(`✅ Message saved in chat history for lead ${lead.id}`);
+      if (!skipClientInsert) {
+        const { error: messageError } = await supabase
+          .from('lead_messages')
+          .insert({
+            lead_id: lead.id,
+            message_text: cleanedMessage,
+            is_from_me: false,
+            whatsapp_message_id: clientMsgId,
+            instance_name: message.key?.remoteJid?.split('@')[0] || null,
+          });
+
+        if (messageError) {
+          console.error(`❌ Error saving message for lead ${lead.id}:`, messageError);
+        } else {
+          console.log(`✅ Message saved in chat history for lead ${lead.id}`);
+        }
       }
     } catch (error) {
       console.error(`❌ Error processing lead ${lead.id}:`, error);
@@ -231,21 +247,37 @@ export const processComercialMessage = async (params: {
         console.log(`✅ Updated lead ${lead.id} with status: ${newStatus} (preserving first message)`);
       }
 
-      // Salvar mensagem comercial no histórico de chat
-      const { error: messageError } = await supabase
-        .from('lead_messages')
-        .insert({
-          lead_id: lead.id,
-          message_text: messageContent,
-          is_from_me: true,
-          whatsapp_message_id: message.key?.id,
-          instance_name: message.key?.remoteJid?.split('@')[0] || null,
-        });
+      // Salvar mensagem comercial no histórico de chat (evitar duplicata se já salva pelo evolution-send-message)
+      const whatsappMsgId = message.key?.id;
+      let skipInsert = false;
+      if (whatsappMsgId) {
+        const { data: existing } = await supabase
+          .from('lead_messages')
+          .select('id')
+          .eq('whatsapp_message_id', whatsappMsgId)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          skipInsert = true;
+          console.log(`⏭️ Message ${whatsappMsgId} already exists, skipping duplicate insert`);
+        }
+      }
 
-      if (messageError) {
-        console.error(`❌ Error saving commercial message for lead ${lead.id}:`, messageError);
-      } else {
-        console.log(`✅ Commercial message saved in chat history for lead ${lead.id}`);
+      if (!skipInsert) {
+        const { error: messageError } = await supabase
+          .from('lead_messages')
+          .insert({
+            lead_id: lead.id,
+            message_text: messageContent,
+            is_from_me: true,
+            whatsapp_message_id: whatsappMsgId,
+            instance_name: message.key?.remoteJid?.split('@')[0] || null,
+          });
+
+        if (messageError) {
+          console.error(`❌ Error saving commercial message for lead ${lead.id}:`, messageError);
+        } else {
+          console.log(`✅ Commercial message saved in chat history for lead ${lead.id}`);
+        }
       }
     } catch (error) {
       console.error(`❌ Error processing lead ${lead.id}:`, error);
