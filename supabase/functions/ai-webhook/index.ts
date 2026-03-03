@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildSystemPrompt, routeMessage, processAIResponse } from './agentLogic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,10 +30,8 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-
     console.log('🤖 AI Webhook received:', JSON.stringify(body).substring(0, 500));
 
-    // 1. Validate event
     if (body.event !== 'messages.upsert' || !body.data) {
       return new Response(JSON.stringify({ success: true, message: 'Event ignored' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
@@ -41,25 +40,24 @@ serve(async (req) => {
 
     const message = body.data;
     const remoteJid = message.key?.remoteJid;
+    const remoteJidAlt = message.key?.remoteJidAlt || message.key?.participantAlt;
     const isFromMe = message.key?.fromMe;
     const instanceName = body.instance;
 
-    // 2. Ignore own messages and groups
     if (isFromMe || !remoteJid || remoteJid.endsWith('@g.us')) {
-      console.log('🚫 Ignored: fromMe or group');
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
       });
     }
 
-    const phone = remoteJid.replace('@s.whatsapp.net', '');
+    const jidForPhone = remoteJid?.endsWith('@lid') && remoteJidAlt ? remoteJidAlt : remoteJid;
+    const phone = (jidForPhone || '').replace(/@(s\.whatsapp\.net|lid|c\.us)$/i, '');
     const messageContent = getMessageContent(message);
     const contactName = message.pushName || 'Lead';
     const serverUrl = body.server_url;
     const apiKey = body.apikey;
 
     if (!messageContent) {
-      console.log('🚫 Empty message, ignoring');
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
       });
@@ -67,43 +65,64 @@ serve(async (req) => {
 
     console.log(`📱 Message from ${phone} (${contactName}): ${messageContent.substring(0, 100)}`);
 
-    // 4. Find active agent for this instance
-    const { data: agent, error: agentError } = await supabase
-      .from('ai_agents')
-      .select('*')
+    // Find or create lead — try to find the owner via the instance
+    let userId: string | null = null;
+    const { data: instance } = await supabase
+      .from('whatsapp_instances')
+      .select('user_id')
       .eq('instance_name', instanceName)
-      .eq('is_active', true)
-      .limit(1)
       .maybeSingle();
 
-    if (agentError || !agent) {
-      console.log(`🚫 No active agent for instance ${instanceName}`);
-      return new Response(JSON.stringify({ success: true, message: 'No agent configured' }), {
+    if (instance) {
+      userId = instance.user_id;
+    } else {
+      // Fallback: get user from agents linked to this channel
+      const { data: ch } = await supabase
+        .from('agent_channels')
+        .select('agent_id, agents(instance_id, whatsapp_instances(user_id))')
+        .eq('channel_type', 'whatsapp')
+        .eq('channel_id', instanceName)
+        .limit(1)
+        .maybeSingle();
+
+      if (ch) {
+        userId = (ch as any)?.agents?.whatsapp_instances?.user_id || null;
+      }
+    }
+
+    if (!userId) {
+      // Last resort
+      const { data: fallbackUser } = await supabase.rpc('get_user_by_instance', { instance_name_param: instanceName });
+      userId = fallbackUser;
+    }
+
+    if (!userId) {
+      console.log('❌ No user found for instance', instanceName);
+      return new Response(JSON.stringify({ success: true, message: 'No user found' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
       });
     }
 
-    console.log(`🤖 Agent found: ${agent.name} (model: ${agent.model})`);
-
     // Find or create lead
+    const phoneVariations = [phone, phone.replace(/^55/, ''), `55${phone}`];
     let leadId: string | null = null;
+
     const { data: existingLead } = await supabase
       .from('leads')
       .select('id')
-      .eq('phone', phone)
-      .eq('user_id', agent.user_id)
+      .eq('user_id', userId)
+      .in('phone', phoneVariations)
       .maybeSingle();
 
     if (existingLead) {
       leadId = existingLead.id;
     } else {
-      // Create lead
       const { data: newLead } = await supabase
         .from('leads')
         .insert({
           phone,
           name: contactName,
-          user_id: agent.user_id,
+          user_id: userId,
           status: 'new',
           initial_message: messageContent,
           first_contact_date: new Date().toISOString(),
@@ -113,101 +132,122 @@ serve(async (req) => {
       if (newLead) leadId = newLead.id;
     }
 
-    // 3. Check human_takeover
-    if (leadId) {
-      const { data: takeover } = await supabase
-        .from('human_takeovers')
-        .select('id')
-        .eq('lead_id', leadId)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (takeover) {
-        console.log(`🙋 Human takeover active for lead ${leadId}, skipping AI`);
-        // Still save the user message
-        await supabase.from('conversation_messages').insert({
-          lead_id: leadId,
-          agent_id: agent.id,
-          role: 'user',
-          content: messageContent,
-          phone,
-          instance_name: instanceName,
-          whatsapp_message_id: message.key?.id,
-        });
-        // Also save to lead_messages for the existing chat system
-        await supabase.from('lead_messages').insert({
-          lead_id: leadId,
-          message_text: messageContent,
-          is_from_me: false,
-          whatsapp_message_id: message.key?.id,
-          instance_name: instanceName,
-        });
-        // Update lead
-        await supabase.from('leads').update({
-          last_message: messageContent,
-          last_contact_date: new Date().toISOString(),
-        }).eq('id', leadId);
-        
-        return new Response(JSON.stringify({ success: true, message: 'Human takeover active' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
-        });
-      }
+    if (!leadId) {
+      console.error('❌ Failed to create/find lead');
+      return new Response(JSON.stringify({ error: 'Lead creation failed' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
+      });
     }
 
-    // Save user message to conversation_messages
-    await supabase.from('conversation_messages').insert({
-      lead_id: leadId,
-      agent_id: agent.id,
-      role: 'user',
-      content: messageContent,
-      phone,
-      instance_name: instanceName,
-      whatsapp_message_id: message.key?.id,
-    });
+    // Check human takeover
+    const { data: takeover } = await supabase
+      .from('human_takeovers')
+      .select('id')
+      .eq('lead_id', leadId)
+      .eq('is_active', true)
+      .maybeSingle();
 
-    // Also save to lead_messages
-    if (leadId) {
+    // Save incoming message to lead_messages
+    const whatsappMsgId = message.key?.id;
+    let skipInsert = false;
+    if (whatsappMsgId) {
+      const { data: existing } = await supabase
+        .from('lead_messages')
+        .select('id')
+        .eq('whatsapp_message_id', whatsappMsgId)
+        .limit(1);
+      if (existing && existing.length > 0) skipInsert = true;
+    }
+
+    if (!skipInsert) {
       await supabase.from('lead_messages').insert({
         lead_id: leadId,
         message_text: messageContent,
         is_from_me: false,
-        whatsapp_message_id: message.key?.id,
+        whatsapp_message_id: whatsappMsgId,
         instance_name: instanceName,
       });
     }
 
-    // 5. Load last N messages for context
-    const { data: history } = await supabase
-      .from('conversation_messages')
-      .select('role, content')
-      .eq('phone', phone)
-      .eq('instance_name', instanceName)
-      .order('created_at', { ascending: false })
-      .limit(agent.max_history_messages || 20);
+    // Update lead
+    await supabase.from('leads').update({
+      last_message: messageContent,
+      last_contact_date: new Date().toISOString(),
+    }).eq('id', leadId);
 
-    const conversationHistory = (history || []).reverse().map((m: any) => ({
-      role: m.role as 'user' | 'assistant' | 'system',
-      content: m.content,
-    }));
-
-    // 6. Detect funnel stage by keywords (optional)
-    let funnelContext = '';
-    if (agent.funnel_keywords && typeof agent.funnel_keywords === 'object') {
-      const keywords = agent.funnel_keywords as Record<string, string[]>;
-      const lowerMsg = messageContent.toLowerCase();
-      for (const [stage, words] of Object.entries(keywords)) {
-        if (Array.isArray(words) && words.some((w: string) => lowerMsg.includes(w.toLowerCase()))) {
-          funnelContext = `\n[O cliente está no estágio: ${stage}]`;
-          // Update lead status if we have a lead
-          if (leadId) {
-            await supabase.from('leads').update({ status: stage }).eq('id', leadId);
-          }
-          break;
-        }
-      }
+    if (takeover) {
+      console.log(`🙋 Human takeover active for lead ${leadId}, skipping AI`);
+      return new Response(JSON.stringify({ success: true, message: 'Human takeover active' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+      });
     }
 
-    // 7. Call Lovable AI Gateway
+    // Route message to agent
+    const routing = await routeMessage(supabase, leadId, instanceName, messageContent);
+
+    if (!routing.agentId) {
+      // Also try legacy ai_agents table
+      const { data: legacyAgent } = await supabase
+        .from('ai_agents')
+        .select('*')
+        .eq('instance_name', instanceName)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!legacyAgent) {
+        console.log(`🚫 No agent for instance ${instanceName}`);
+        return new Response(JSON.stringify({ success: true, message: 'No agent configured' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+        });
+      }
+
+      // Legacy flow using ai_agents
+      return await handleLegacyAgent(supabase, legacyAgent, leadId, phone, contactName, messageContent, instanceName, serverUrl, apiKey, message);
+    }
+
+    // Check agent is active
+    const { data: agentData } = await supabase
+      .from('agents')
+      .select('is_active')
+      .eq('id', routing.agentId)
+      .single();
+
+    if (!agentData?.is_active) {
+      console.log(`🚫 Agent ${routing.agentId} is inactive`);
+      return new Response(JSON.stringify({ success: true, message: 'Agent inactive' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+      });
+    }
+
+    console.log(`🤖 Agent routed: ${routing.agentId}, stage: ${routing.stageId}`);
+
+    // Build system prompt
+    const systemPrompt = await buildSystemPrompt(
+      supabase, routing.agentId, routing.stageId, routing.collected, contactName
+    );
+
+    if (!systemPrompt) {
+      console.error('❌ Failed to build prompt');
+      return new Response(JSON.stringify({ error: 'Prompt build failed' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
+      });
+    }
+
+    // Load conversation history
+    const { data: history } = await supabase
+      .from('lead_messages')
+      .select('message_text, is_from_me')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    const conversationHistory = (history || []).reverse().map((m: any) => ({
+      role: m.is_from_me ? 'assistant' : 'user',
+      content: m.message_text,
+    }));
+
+    // Call AI
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       console.error('❌ LOVABLE_API_KEY not configured');
@@ -216,20 +256,12 @@ serve(async (req) => {
       });
     }
 
-    const systemPrompt = `${agent.system_prompt}${funnelContext}\n\nNome do contato: ${contactName}`;
-
     const aiMessages = [
       { role: 'system', content: systemPrompt },
       ...conversationHistory,
     ];
 
-    // If the last message in history is not the current user message, add it
-    const lastInHistory = conversationHistory[conversationHistory.length - 1];
-    if (!lastInHistory || lastInHistory.content !== messageContent) {
-      aiMessages.push({ role: 'user', content: messageContent });
-    }
-
-    console.log(`🧠 Sending ${aiMessages.length} messages to AI (model: ${agent.model})`);
+    console.log(`🧠 Sending ${aiMessages.length} messages to AI`);
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -238,7 +270,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: agent.model || 'google/gemini-3-flash-preview',
+        model: 'google/gemini-3-flash-preview',
         messages: aiMessages,
         stream: false,
       }),
@@ -253,74 +285,51 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const assistantMessage = aiData.choices?.[0]?.message?.content;
+    const rawAssistantMessage = aiData.choices?.[0]?.message?.content;
 
-    if (!assistantMessage) {
-      console.error('❌ No content in AI response');
+    if (!rawAssistantMessage) {
+      console.error('❌ Empty AI response');
       return new Response(JSON.stringify({ error: 'Empty AI response' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
       });
     }
 
-    console.log(`💬 AI Response: ${assistantMessage.substring(0, 100)}...`);
+    // Process response (extract vars, advance stages)
+    const processed = await processAIResponse(
+      supabase, leadId, routing.agentId, routing.stageId, rawAssistantMessage, routing.collected
+    );
 
-    // 8. Save assistant response to conversation_messages
-    await supabase.from('conversation_messages').insert({
-      lead_id: leadId,
-      agent_id: agent.id,
-      role: 'assistant',
-      content: assistantMessage,
-      phone,
-      instance_name: instanceName,
-    });
+    console.log(`💬 AI Response: ${processed.cleanResponse.substring(0, 100)}... | stageAdvanced: ${processed.stageAdvanced}`);
 
-    // 9. Apply humanized delay
-    const delayMs = agent.response_delay_ms || 1500;
-    console.log(`⏳ Applying ${delayMs}ms delay...`);
-    await delay(delayMs);
+    // Delay
+    await delay(1500);
 
-    // 10. Send response via Evolution API
+    // Send via Evolution API
     const evolutionUrl = Deno.env.get('EVOLUTION_API_URL') || serverUrl;
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY') || apiKey;
 
     const sendUrl = `${evolutionUrl}/message/sendText/${instanceName}`;
-    console.log(`📤 Sending to Evolution: ${sendUrl}`);
-
     const evoResponse = await fetch(sendUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
-      },
-      body: JSON.stringify({
-        number: phone,
-        text: assistantMessage,
-      }),
+      headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+      body: JSON.stringify({ number: phone, text: processed.cleanResponse }),
     });
 
     const evoData = await evoResponse.json();
     console.log(`✅ Evolution response:`, JSON.stringify(evoData).substring(0, 200));
 
-    const whatsappMessageId = evoData?.key?.id || null;
+    const sentMsgId = evoData?.key?.id || null;
 
-    // Save AI response to lead_messages too
-    if (leadId) {
-      await supabase.from('lead_messages').insert({
-        lead_id: leadId,
-        message_text: assistantMessage,
-        is_from_me: true,
-        whatsapp_message_id: whatsappMessageId,
-        instance_name: instanceName,
-      });
+    // Save AI response to lead_messages
+    await supabase.from('lead_messages').insert({
+      lead_id: leadId,
+      message_text: processed.cleanResponse,
+      is_from_me: true,
+      whatsapp_message_id: sentMsgId,
+      instance_name: instanceName,
+    });
 
-      // Update lead
-      await supabase.from('leads').update({
-        last_message: messageContent,
-        last_contact_date: new Date().toISOString(),
-      }).eq('id', leadId);
-    }
-
-    return new Response(JSON.stringify({ success: true, message: 'AI response sent' }), {
+    return new Response(JSON.stringify({ success: true, message: 'AI response sent', stageAdvanced: processed.stageAdvanced }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
     });
 
@@ -331,3 +340,92 @@ serve(async (req) => {
     });
   }
 });
+
+// Legacy handler for old ai_agents table
+async function handleLegacyAgent(
+  supabase: any, agent: any, leadId: string, phone: string,
+  contactName: string, messageContent: string, instanceName: string,
+  serverUrl: string, apiKey: string, message: any
+) {
+  // Save to conversation_messages
+  await supabase.from('conversation_messages').insert({
+    lead_id: leadId,
+    agent_id: agent.id,
+    role: 'user',
+    content: messageContent,
+    phone,
+    instance_name: instanceName,
+    whatsapp_message_id: message.key?.id,
+  });
+
+  // Load history
+  const { data: history } = await supabase
+    .from('conversation_messages')
+    .select('role, content')
+    .eq('phone', phone)
+    .eq('instance_name', instanceName)
+    .order('created_at', { ascending: false })
+    .limit(agent.max_history_messages || 20);
+
+  const conversationHistory = (history || []).reverse().map((m: any) => ({
+    role: m.role, content: m.content,
+  }));
+
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) {
+    return new Response(JSON.stringify({ error: 'AI not configured' }), {
+      headers: { 'Content-Type': 'application/json' }, status: 500,
+    });
+  }
+
+  const systemPrompt = `${agent.system_prompt}\n\nNome do contato: ${contactName}`;
+  const aiMessages = [{ role: 'system', content: systemPrompt }, ...conversationHistory];
+
+  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: agent.model || 'google/gemini-3-flash-preview', messages: aiMessages, stream: false }),
+  });
+
+  if (!aiResponse.ok) {
+    return new Response(JSON.stringify({ error: 'AI error' }), {
+      headers: { 'Content-Type': 'application/json' }, status: 500,
+    });
+  }
+
+  const aiData = await aiResponse.json();
+  const assistantMessage = aiData.choices?.[0]?.message?.content;
+  if (!assistantMessage) {
+    return new Response(JSON.stringify({ error: 'Empty response' }), {
+      headers: { 'Content-Type': 'application/json' }, status: 500,
+    });
+  }
+
+  await supabase.from('conversation_messages').insert({
+    lead_id: leadId, agent_id: agent.id, role: 'assistant',
+    content: assistantMessage, phone, instance_name: instanceName,
+  });
+
+  await delay(agent.response_delay_ms || 1500);
+
+  const evolutionUrl = Deno.env.get('EVOLUTION_API_URL') || serverUrl;
+  const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY') || apiKey;
+
+  const evoResponse = await fetch(`${evolutionUrl}/message/sendText/${instanceName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+    body: JSON.stringify({ number: phone, text: assistantMessage }),
+  });
+
+  const evoData = await evoResponse.json();
+  const sentMsgId = evoData?.key?.id || null;
+
+  await supabase.from('lead_messages').insert({
+    lead_id: leadId, message_text: assistantMessage, is_from_me: true,
+    whatsapp_message_id: sentMsgId, instance_name: instanceName,
+  });
+
+  return new Response(JSON.stringify({ success: true, message: 'Legacy AI response sent' }), {
+    headers: { 'Content-Type': 'application/json' }, status: 200,
+  });
+}

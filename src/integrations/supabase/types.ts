@@ -14,6 +14,209 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_channels: {
+        Row: {
+          agent_id: string
+          channel_id: string
+          channel_type: string
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+        }
+        Insert: {
+          agent_id: string
+          channel_id: string
+          channel_type: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+        }
+        Update: {
+          agent_id?: string
+          channel_id?: string
+          channel_type?: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_channels_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_knowledge_bases: {
+        Row: {
+          agent_id: string
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          knowledge_base_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          knowledge_base_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          knowledge_base_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_knowledge_bases_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_knowledge_bases_knowledge_base_id_fkey"
+            columns: ["knowledge_base_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_bases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_stages: {
+        Row: {
+          agent_id: string
+          created_at: string | null
+          funnel_status: string | null
+          ia_context: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          objective: string | null
+          stage_order: number
+          success_criteria: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string | null
+          funnel_status?: string | null
+          ia_context?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          objective?: string | null
+          stage_order: number
+          success_criteria?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string | null
+          funnel_status?: string | null
+          ia_context?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          objective?: string | null
+          stage_order?: number
+          success_criteria?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_stages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_triggers: {
+        Row: {
+          agent_id: string
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          phrase: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          phrase: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          phrase?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_triggers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agents: {
+        Row: {
+          behavior_rules: string | null
+          created_at: string | null
+          function: string | null
+          id: string
+          instance_id: string | null
+          is_active: boolean | null
+          knowledge_content: string | null
+          name: string
+          persona_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          behavior_rules?: string | null
+          created_at?: string | null
+          function?: string | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          knowledge_content?: string | null
+          name: string
+          persona_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          behavior_rules?: string | null
+          created_at?: string | null
+          function?: string | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          knowledge_content?: string | null
+          name?: string
+          persona_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agents_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agents: {
         Row: {
           created_at: string
@@ -544,6 +747,33 @@ export type Database = {
           },
         ]
       }
+      knowledge_bases: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       lead_messages: {
         Row: {
           created_at: string
@@ -611,12 +841,15 @@ export type Database = {
           ad_account: string | null
           ad_name: string | null
           ad_set_name: string | null
+          agent_id: string | null
           browser: string | null
           campaign: string | null
           campaign_id: string | null
           city: string | null
+          collected_variables: Json | null
           country: string | null
           created_at: string
+          current_stage_id: string | null
           custom_fields: Json | null
           device_model: string | null
           device_type: string | null
@@ -658,12 +891,15 @@ export type Database = {
           ad_account?: string | null
           ad_name?: string | null
           ad_set_name?: string | null
+          agent_id?: string | null
           browser?: string | null
           campaign?: string | null
           campaign_id?: string | null
           city?: string | null
+          collected_variables?: Json | null
           country?: string | null
           created_at?: string
+          current_stage_id?: string | null
           custom_fields?: Json | null
           device_model?: string | null
           device_type?: string | null
@@ -705,12 +941,15 @@ export type Database = {
           ad_account?: string | null
           ad_name?: string | null
           ad_set_name?: string | null
+          agent_id?: string | null
           browser?: string | null
           campaign?: string | null
           campaign_id?: string | null
           city?: string | null
+          collected_variables?: Json | null
           country?: string | null
           created_at?: string
+          current_stage_id?: string | null
           custom_fields?: Json | null
           device_model?: string | null
           device_type?: string | null
@@ -748,7 +987,22 @@ export type Database = {
           utm_term?: string | null
           whatsapp_delivery_attempts?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leads_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "agent_stages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pending_leads: {
         Row: {
@@ -847,6 +1101,76 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_examples: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          role: string | null
+          stage_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          role?: string | null
+          stage_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          role?: string | null
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_examples_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "agent_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stage_variables: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          field_name: string
+          field_type: string | null
+          id: string
+          is_required: boolean | null
+          stage_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          field_name: string
+          field_type?: string | null
+          id?: string
+          is_required?: boolean | null
+          stage_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          field_name?: string
+          field_type?: string | null
+          id?: string
+          is_required?: boolean | null
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_variables_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "agent_stages"
             referencedColumns: ["id"]
           },
         ]
