@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useLLMProviders } from '@/hooks/useLLMProviders';
 
 interface AiAgent {
   id: string;
@@ -28,13 +29,7 @@ interface AiAgent {
   updated_at: string;
 }
 
-const MODELS = [
-  { value: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (Rápido)' },
-  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (Equilibrado)' },
-  { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Avançado)' },
-  { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini' },
-  { value: 'openai/gpt-5', label: 'GPT-5 (Premium)' },
-];
+// Models are now dynamic from useLLMProviders
 
 const AIAgents = () => {
   const { user } = useAuth();
@@ -42,6 +37,8 @@ const AIAgents = () => {
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<{ instance_name: string }[]>([]);
   const [editingAgent, setEditingAgent] = useState<Partial<AiAgent> | null>(null);
+  const { getAvailableModels } = useLLMProviders();
+  const availableModels = getAvailableModels();
 
   useEffect(() => {
     fetchAgents();
@@ -241,13 +238,18 @@ const AIAgents = () => {
                           value={editingAgent.model || ''}
                           onValueChange={v => setEditingAgent({ ...editingAgent, model: v })}
                         >
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Selecione um modelo" /></SelectTrigger>
                           <SelectContent>
-                            {MODELS.map(m => (
-                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            {availableModels.map(m => (
+                              <SelectItem key={m.value} value={m.value}>
+                                {m.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Configure mais provedores em Configurações → Provedores de IA
+                        </p>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
