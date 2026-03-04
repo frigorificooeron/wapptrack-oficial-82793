@@ -19,6 +19,131 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Multi-provider LLM call
+async function callLLM(
+  supabase: any,
+  userId: string,
+  modelString: string,
+  messages: { role: string; content: string }[]
+): Promise<{ success: boolean; content?: string; error?: string }> {
+  // Parse provider/model: "lovable/google/gemini-3-flash-preview" or "google/gemini-2.5-flash" or "anthropic/claude-sonnet-4-20250514"
+  let provider: string;
+  let model: string;
+
+  if (modelString.startsWith('lovable/')) {
+    provider = 'lovable';
+    model = modelString.replace('lovable/', '');
+  } else {
+    const parts = modelString.split('/');
+    provider = parts[0] || 'lovable';
+    model = parts.slice(1).join('/') || modelString;
+  }
+
+  let apiKey: string | null = null;
+  let apiUrl: string;
+
+  if (provider === 'lovable') {
+    apiKey = Deno.env.get('LOVABLE_API_KEY') || null;
+    apiUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+  } else {
+    // Fetch user's API key from llm_provider_keys
+    const { data: keyData } = await supabase
+      .from('llm_provider_keys')
+      .select('api_key')
+      .eq('user_id', userId)
+      .eq('provider', provider)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    apiKey = keyData?.api_key || null;
+
+    if (!apiKey) {
+      // Fallback to lovable gateway
+      console.log(`⚠️ No ${provider} key found, falling back to Lovable Gateway`);
+      apiKey = Deno.env.get('LOVABLE_API_KEY') || null;
+      apiUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+      // Keep original model format for gateway
+      model = modelString.startsWith('lovable/') ? modelString.replace('lovable/', '') : modelString;
+    } else {
+      switch (provider) {
+        case 'google':
+          apiUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+          break;
+        case 'openai':
+          apiUrl = 'https://api.openai.com/v1/chat/completions';
+          break;
+        case 'anthropic':
+          apiUrl = 'https://api.anthropic.com/v1/messages';
+          break;
+        default:
+          apiUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+      }
+    }
+  }
+
+  if (!apiKey) {
+    return { success: false, error: 'No API key configured' };
+  }
+
+  try {
+    if (provider === 'anthropic' && !apiUrl.includes('lovable')) {
+      // Anthropic uses different format
+      const systemMsg = messages.find(m => m.role === 'system');
+      const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4096,
+          system: systemMsg?.content || '',
+          messages: nonSystemMsgs,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return { success: false, error: `Anthropic error ${response.status}: ${errText}` };
+      }
+
+      const data = await response.json();
+      return { success: true, content: data.content?.[0]?.text };
+    } else {
+      // OpenAI-compatible format (OpenAI, Google, Lovable Gateway)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (provider === 'google' && !apiUrl.includes('lovable')) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model, messages, stream: false }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return { success: false, error: `AI error ${response.status}: ${errText}` };
+      }
+
+      const data = await response.json();
+      return { success: true, content: data.choices?.[0]?.message?.content };
+    }
+  } catch (err) {
+    return { success: false, error: `AI call failed: ${err}` };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -206,14 +331,16 @@ serve(async (req) => {
       return await handleLegacyAgent(supabase, legacyAgent, leadId, phone, contactName, messageContent, instanceName, serverUrl, apiKey, message);
     }
 
-    // Check agent is active
-    const { data: agentData } = await supabase
+    // Determine which model to use from lead's agent config
+    // We need the model from the ai_agents or agents table
+    let agentModel = 'lovable/google/gemini-3-flash-preview'; // default
+    const { data: agentConfig } = await supabase
       .from('agents')
       .select('is_active')
       .eq('id', routing.agentId)
       .single();
 
-    if (!agentData?.is_active) {
+    if (!agentConfig?.is_active) {
       console.log(`🚫 Agent ${routing.agentId} is inactive`);
       return new Response(JSON.stringify({ success: true, message: 'Agent inactive' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
@@ -247,45 +374,24 @@ serve(async (req) => {
       content: m.message_text,
     }));
 
-    // Call AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('❌ LOVABLE_API_KEY not configured');
-      return new Response(JSON.stringify({ error: 'AI not configured' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
-      });
-    }
-
+    // Call AI with multi-provider support
     const aiMessages = [
       { role: 'system', content: systemPrompt },
       ...conversationHistory,
     ];
 
-    console.log(`🧠 Sending ${aiMessages.length} messages to AI`);
+    console.log(`🧠 Sending ${aiMessages.length} messages to AI, model: ${agentModel}`);
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: aiMessages,
-        stream: false,
-      }),
-    });
+    const aiResult = await callLLM(supabase, userId, agentModel, aiMessages);
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error(`❌ AI Gateway error ${aiResponse.status}: ${errText}`);
-      return new Response(JSON.stringify({ error: 'AI Gateway error' }), {
+    if (!aiResult.success) {
+      console.error(`❌ AI error: ${aiResult.error}`);
+      return new Response(JSON.stringify({ error: aiResult.error }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
       });
     }
 
-    const aiData = await aiResponse.json();
-    const rawAssistantMessage = aiData.choices?.[0]?.message?.content;
+    const rawAssistantMessage = aiResult.content;
 
     if (!rawAssistantMessage) {
       console.error('❌ Empty AI response');
@@ -371,35 +477,21 @@ async function handleLegacyAgent(
     role: m.role, content: m.content,
   }));
 
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: 'AI not configured' }), {
-      headers: { 'Content-Type': 'application/json' }, status: 500,
-    });
-  }
-
+  // Use callLLM with multi-provider support
   const systemPrompt = `${agent.system_prompt}\n\nNome do contato: ${contactName}`;
   const aiMessages = [{ role: 'system', content: systemPrompt }, ...conversationHistory];
+  const modelStr = agent.model || 'lovable/google/gemini-3-flash-preview';
 
-  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: agent.model || 'google/gemini-3-flash-preview', messages: aiMessages, stream: false }),
-  });
+  const aiResult = await callLLM(supabase, agent.user_id, modelStr, aiMessages);
 
-  if (!aiResponse.ok) {
-    return new Response(JSON.stringify({ error: 'AI error' }), {
+  if (!aiResult.success || !aiResult.content) {
+    console.error(`❌ Legacy AI error: ${aiResult.error}`);
+    return new Response(JSON.stringify({ error: aiResult.error || 'Empty response' }), {
       headers: { 'Content-Type': 'application/json' }, status: 500,
     });
   }
 
-  const aiData = await aiResponse.json();
-  const assistantMessage = aiData.choices?.[0]?.message?.content;
-  if (!assistantMessage) {
-    return new Response(JSON.stringify({ error: 'Empty response' }), {
-      headers: { 'Content-Type': 'application/json' }, status: 500,
-    });
-  }
+  const assistantMessage = aiResult.content;
 
   await supabase.from('conversation_messages').insert({
     lead_id: leadId, agent_id: agent.id, role: 'assistant',
