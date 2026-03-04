@@ -8,7 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Brain, Eye, EyeOff, Save, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Brain, Eye, EyeOff, Save, Trash2, CheckCircle2 } from 'lucide-react';
+import { PROVIDER_MODELS } from '@/hooks/useLLMProviders';
 
 interface ProviderKey {
   id?: string;
@@ -19,32 +21,28 @@ interface ProviderKey {
 
 const PROVIDERS = [
   {
+    id: 'lovable',
+    name: 'Lovable AI Gateway',
+    placeholder: 'Configurado automaticamente',
+    description: 'Gateway integrado — usa LOVABLE_API_KEY (já configurado). Suporta modelos Google e OpenAI.',
+  },
+  {
     id: 'google',
     name: 'Google Gemini',
     placeholder: 'AIzaSy...',
     description: 'API Key do Google AI Studio (aistudio.google.com)',
-    models: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview'],
   },
   {
     id: 'openai',
     name: 'OpenAI (GPT)',
     placeholder: 'sk-...',
     description: 'API Key da OpenAI (platform.openai.com)',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini'],
   },
   {
     id: 'anthropic',
     name: 'Anthropic (Claude)',
     placeholder: 'sk-ant-...',
     description: 'API Key da Anthropic (console.anthropic.com)',
-    models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
-  },
-  {
-    id: 'lovable',
-    name: 'Lovable AI Gateway',
-    placeholder: 'Configurado automaticamente',
-    description: 'Gateway integrado — usa LOVABLE_API_KEY (já configurado)',
-    models: ['google/gemini-3-flash-preview', 'google/gemini-2.5-flash', 'google/gemini-2.5-pro', 'openai/gpt-5-mini', 'openai/gpt-5'],
   },
 ];
 
@@ -53,9 +51,15 @@ const LLMProviderSettings = () => {
   const [keys, setKeys] = useState<Record<string, ProviderKey>>({});
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('');
 
   useEffect(() => {
-    if (user) fetchKeys();
+    if (user) {
+      fetchKeys();
+      // Load saved default model
+      const saved = localStorage.getItem(`default_model_${user.id}`);
+      if (saved) setSelectedModel(saved);
+    }
   }, [user]);
 
   const fetchKeys = async () => {
@@ -68,7 +72,6 @@ const LLMProviderSettings = () => {
     (data || []).forEach((k: any) => {
       map[k.provider] = { id: k.id, provider: k.provider, api_key: k.api_key, is_active: k.is_active };
     });
-    // Always show lovable as active
     if (!map['lovable']) {
       map['lovable'] = { provider: 'lovable', api_key: 'auto', is_active: true };
     }
@@ -123,10 +126,26 @@ const LLMProviderSettings = () => {
     }));
   };
 
-  const maskKey = (key: string) => {
-    if (!key || key === 'auto') return '••••••••';
-    if (key.length <= 8) return '••••••••';
-    return key.substring(0, 6) + '•'.repeat(Math.min(20, key.length - 10)) + key.substring(key.length - 4);
+  // Build all available models from active providers
+  const getAvailableModels = () => {
+    const models: { provider: string; providerName: string; value: string; label: string }[] = [];
+    for (const p of PROVIDERS) {
+      const isActive = p.id === 'lovable' || keys[p.id]?.is_active;
+      if (!isActive) continue;
+      const providerModels = PROVIDER_MODELS[p.id] || [];
+      providerModels.forEach(m => models.push({ ...m, provider: p.id, providerName: p.name }));
+    }
+    return models;
+  };
+
+  const availableModels = getAvailableModels();
+
+  const handleModelSelect = (value: string) => {
+    setSelectedModel(value);
+    if (user) {
+      localStorage.setItem(`default_model_${user.id}`, value);
+    }
+    toast.success('Modelo padrão definido!');
   };
 
   return (
@@ -137,14 +156,57 @@ const LLMProviderSettings = () => {
           Provedores de IA (LLM)
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Configure as API keys dos provedores de IA para seus agentes
+          Configure as API keys dos provedores e selecione o modelo padrão para seus agentes
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
+        {/* Default Model Selector */}
+        <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            Modelo Padrão
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Selecione o modelo de IA que será usado por padrão nos novos agentes
+          </p>
+          <Select value={selectedModel} onValueChange={handleModelSelect}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione um modelo..." />
+            </SelectTrigger>
+            <SelectContent>
+              {PROVIDERS.map(p => {
+                const isActive = p.id === 'lovable' || keys[p.id]?.is_active;
+                if (!isActive) return null;
+                const models = PROVIDER_MODELS[p.id] || [];
+                if (models.length === 0) return null;
+                return (
+                  <React.Fragment key={p.id}>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {p.name}
+                    </div>
+                    {models.map(m => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </SelectContent>
+          </Select>
+          {selectedModel && (
+            <p className="text-xs text-muted-foreground">
+              Modelo selecionado: <span className="font-mono text-foreground">{selectedModel}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Provider Cards */}
         {PROVIDERS.map(provider => {
           const key = keys[provider.id];
           const isLovable = provider.id === 'lovable';
           const isVisible = visibleKeys[provider.id];
+          const models = PROVIDER_MODELS[provider.id] || [];
 
           return (
             <div key={provider.id} className="border rounded-lg p-4 space-y-3">
@@ -203,8 +265,16 @@ const LLMProviderSettings = () => {
               )}
 
               <div className="flex flex-wrap gap-1">
-                {provider.models.map(m => (
-                  <Badge key={m} variant="outline" className="text-xs font-mono">{m}</Badge>
+                {models.map(m => (
+                  <Badge
+                    key={m.value}
+                    variant={selectedModel === m.value ? 'default' : 'outline'}
+                    className="text-xs font-mono cursor-pointer hover:bg-primary/10 transition-colors"
+                    onClick={() => handleModelSelect(m.value)}
+                  >
+                    {m.label}
+                    {selectedModel === m.value && ' ✓'}
+                  </Badge>
                 ))}
               </div>
             </div>
