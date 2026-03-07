@@ -60,6 +60,7 @@ serve(async (req) => {
       const remoteJid = message.key?.remoteJid;
       const remoteJidAlt = message.key?.remoteJidAlt || message.key?.participantAlt;
       const isFromMe = message.key?.fromMe;
+      let instanceName: string;
       
       try {
         instanceName = sanitizeInstanceName(body.instance);
@@ -132,6 +133,22 @@ serve(async (req) => {
             await processClientMessage({
               supabase, message, realPhoneNumber, matchedLeads, messageContent
             });
+            // Forward to ai-webhook for AI agent processing
+            try {
+              const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://bwicygxyhkdgrypqrijo.supabase.co';
+              const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+              await fetch(`${supabaseUrl}/functions/v1/ai-webhook`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${serviceKey}`,
+                },
+                body: JSON.stringify(body),
+              });
+              console.log('🤖 Forwarded to ai-webhook for AI processing');
+            } catch (aiErr) {
+              console.error('⚠️ Failed to forward to ai-webhook:', aiErr);
+            }
           }
         } else {
           // No lead found; direct WhatsApp message
@@ -143,6 +160,22 @@ serve(async (req) => {
               realPhoneNumber, 
               instanceName 
             });
+            // Forward to ai-webhook for AI agent processing
+            try {
+              const supabaseUrl2 = Deno.env.get('SUPABASE_URL') || 'https://bwicygxyhkdgrypqrijo.supabase.co';
+              const serviceKey2 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+              await fetch(`${supabaseUrl2}/functions/v1/ai-webhook`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${serviceKey2}`,
+                },
+                body: JSON.stringify(body),
+              });
+              console.log('🤖 Forwarded new contact to ai-webhook');
+            } catch (aiErr) {
+              console.error('⚠️ Failed to forward to ai-webhook:', aiErr);
+            }
           } else {
             console.log(`📤 Mensagem enviada por mim para: ${realPhoneNumber} - ignorando`);
           }

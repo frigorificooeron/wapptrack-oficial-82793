@@ -100,7 +100,6 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
           console.log('📩 Nova mensagem via realtime:', newMsg.message_text?.substring(0, 30));
           
           setMessages((prev) => {
-            // Se é uma mensagem otimista que já foi confirmada, atualiza em vez de duplicar
             const optimisticIdx = prev.findIndex(
               (m) => optimisticIdsRef.current.has(m.id) && m.message_text === newMsg.message_text
             );
@@ -110,7 +109,6 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
               updated[optimisticIdx] = newMsg;
               return updated;
             }
-            // Evita duplicatas reais
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
@@ -136,7 +134,45 @@ export const useLeadChat = (leadId: string, leadPhone: string) => {
         console.log(`📡 Realtime lead_messages status: ${status}`);
       });
 
+    // Fallback polling with exponential backoff
+    let pollInterval = 3000;
+    let isActive = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      if (!isActive) return;
+      try {
+        const { data } = await supabase
+          .from('lead_messages')
+          .select('*')
+          .eq('lead_id', leadId)
+          .order('sent_at', { ascending: true });
+
+        if (data) {
+          setMessages((prev) => {
+            // Merge: keep optimistic messages, add any new real ones
+            const realIds = new Set(data.map((m: LeadMessage) => m.id));
+            const optimistic = prev.filter((m) => optimisticIdsRef.current.has(m.id) && !realIds.has(m.id));
+            if (data.length !== prev.length - optimistic.length) {
+              pollInterval = 3000; // Reset on new data
+            }
+            return [...data, ...optimistic];
+          });
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+      pollInterval = Math.min(pollInterval * 1.5, 30000);
+      if (isActive) {
+        timeoutId = setTimeout(poll, pollInterval);
+      }
+    };
+
+    timeoutId = setTimeout(poll, pollInterval);
+
     return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
       supabase.removeChannel(channel);
     };
   }, [leadId, fetchMessages]);
