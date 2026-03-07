@@ -160,6 +160,22 @@ serve(async (req) => {
               realPhoneNumber, 
               instanceName 
             });
+            // Forward to ai-webhook for AI agent processing
+            try {
+              const supabaseUrl2 = Deno.env.get('SUPABASE_URL') || 'https://bwicygxyhkdgrypqrijo.supabase.co';
+              const serviceKey2 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+              await fetch(`${supabaseUrl2}/functions/v1/ai-webhook`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${serviceKey2}`,
+                },
+                body: JSON.stringify(body),
+              });
+              console.log('🤖 Forwarded new contact to ai-webhook');
+            } catch (aiErr) {
+              console.error('⚠️ Failed to forward to ai-webhook:', aiErr);
+            }
           } else {
             console.log(`📤 Mensagem enviada por mim para: ${realPhoneNumber} - ignorando`);
           }
