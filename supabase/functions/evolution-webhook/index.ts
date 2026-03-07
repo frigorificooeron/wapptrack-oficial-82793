@@ -60,6 +60,7 @@ serve(async (req) => {
       const remoteJid = message.key?.remoteJid;
       const remoteJidAlt = message.key?.remoteJidAlt || message.key?.participantAlt;
       const isFromMe = message.key?.fromMe;
+      let instanceName: string;
       
       try {
         instanceName = sanitizeInstanceName(body.instance);
