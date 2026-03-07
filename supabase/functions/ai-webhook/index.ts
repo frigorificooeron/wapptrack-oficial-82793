@@ -19,6 +19,107 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function splitIntoChunks(text: string, maxLen = 200): string[] {
+  // First split on double newlines (paragraphs)
+  const paragraphs = text.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  const chunks: string[] = [];
+
+  for (const para of paragraphs) {
+    // If paragraph is short enough, keep as-is
+    if (para.length <= maxLen) {
+      chunks.push(para);
+      continue;
+    }
+
+    // Split on sentence boundaries
+    const sentences = para.split(/(?<=[.!?])\s+/);
+    let current = '';
+
+    for (const sentence of sentences) {
+      // URLs and questions always get their own chunk
+      const isUrl = /https?:\/\/\S+/.test(sentence);
+      const isQuestion = sentence.trim().endsWith('?');
+
+      if (isUrl || isQuestion) {
+        if (current.trim()) {
+          chunks.push(current.trim());
+          current = '';
+        }
+        chunks.push(sentence.trim());
+        continue;
+      }
+
+      if ((current + ' ' + sentence).trim().length <= maxLen) {
+        current = (current + ' ' + sentence).trim();
+      } else {
+        if (current.trim()) chunks.push(current.trim());
+        current = sentence;
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+  }
+
+  return chunks.length > 0 ? chunks : [text];
+}
+
+async function sendChunkedMessages(
+  evolutionUrl: string,
+  evolutionApiKey: string,
+  instanceName: string,
+  phone: string,
+  fullText: string,
+  supabase: any,
+  leadId: string,
+): Promise<void> {
+  const chunks = splitIntoChunks(fullText, 200);
+  console.log(`📨 Sending ${chunks.length} chunks to ${phone}`);
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+
+    // 1. Show "typing..." presence
+    try {
+      await fetch(`${evolutionUrl}/chat/updatePresence/${instanceName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+        body: JSON.stringify({ number: phone, presence: 'composing' }),
+      });
+    } catch (e) {
+      console.warn('⚠️ Failed to set typing presence:', e);
+    }
+
+    // 2. Typing delay proportional to chunk length (2-4s + ~15ms per char)
+    const typingDelay = 2000 + Math.random() * 2000 + chunk.length * 15;
+    await delay(typingDelay);
+
+    // 3. Send the chunk
+    const evoResponse = await fetch(`${evolutionUrl}/message/sendText/${instanceName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+      body: JSON.stringify({ number: phone, text: chunk }),
+    });
+
+    const evoData = await evoResponse.json();
+    const sentMsgId = evoData?.key?.id || null;
+
+    // 4. Save each chunk as a separate message in DB
+    await supabase.from('lead_messages').insert({
+      lead_id: leadId,
+      message_text: chunk,
+      is_from_me: true,
+      whatsapp_message_id: sentMsgId,
+      instance_name: instanceName,
+    });
+
+    console.log(`  ✅ Chunk ${i + 1}/${chunks.length} sent (${chunk.length} chars)`);
+
+    // 5. Breathing pause between chunks (1-2s)
+    if (i < chunks.length - 1) {
+      await delay(1000 + Math.random() * 1000);
+    }
+  }
+}
+
 // Multi-provider LLM call
 async function callLLM(
   supabase: any,

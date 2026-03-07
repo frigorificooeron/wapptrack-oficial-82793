@@ -89,6 +89,13 @@ export async function buildSystemPrompt(
   prompt += `\n\nNome do contato: ${contactName}`;
 
   prompt += `\n\n--- INSTRUÇÕES DE SISTEMA ---
+- Responda de forma curta e natural, como uma conversa real de WhatsApp.
+- Use frases curtas. Separe ideias em parágrafos com quebra de linha dupla.
+- Nunca envie blocos longos de texto. Máximo 2-3 frases por parágrafo.
+- Links e CTAs devem estar em linhas separadas.
+- Perguntas devem estar em linhas separadas.
+- O tom deve ser humano, acolhedor e conversacional.
+
 Ao identificar informações do lead na conversa, retorne um JSON no final da mensagem:
 <!--VARIABLES:{"campo": "valor"}-->
 Só inclua variáveis que foram claramente informadas pelo lead.
