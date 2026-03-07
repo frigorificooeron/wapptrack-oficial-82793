@@ -508,33 +508,11 @@ serve(async (req) => {
 
     console.log(`💬 AI Response: ${processed.cleanResponse.substring(0, 100)}... | stageAdvanced: ${processed.stageAdvanced}`);
 
-    // Delay
-    await delay(1500);
-
-    // Send via Evolution API
+    // Send chunked messages with typing simulation
     const evolutionUrl = Deno.env.get('EVOLUTION_API_URL') || serverUrl;
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY') || apiKey;
 
-    const sendUrl = `${evolutionUrl}/message/sendText/${instanceName}`;
-    const evoResponse = await fetch(sendUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-      body: JSON.stringify({ number: phone, text: processed.cleanResponse }),
-    });
-
-    const evoData = await evoResponse.json();
-    console.log(`✅ Evolution response:`, JSON.stringify(evoData).substring(0, 200));
-
-    const sentMsgId = evoData?.key?.id || null;
-
-    // Save AI response to lead_messages
-    await supabase.from('lead_messages').insert({
-      lead_id: leadId,
-      message_text: processed.cleanResponse,
-      is_from_me: true,
-      whatsapp_message_id: sentMsgId,
-      instance_name: instanceName,
-    });
+    await sendChunkedMessages(evolutionUrl, evolutionApiKey, instanceName, phone, processed.cleanResponse, supabase, leadId);
 
     return new Response(JSON.stringify({ success: true, message: 'AI response sent', stageAdvanced: processed.stageAdvanced }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
