@@ -577,24 +577,11 @@ async function handleLegacyAgent(
     content: assistantMessage, phone, instance_name: instanceName,
   });
 
-  await delay(agent.response_delay_ms || 1500);
-
+  // Send chunked messages with typing simulation
   const evolutionUrl = Deno.env.get('EVOLUTION_API_URL') || serverUrl;
   const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY') || apiKey;
 
-  const evoResponse = await fetch(`${evolutionUrl}/message/sendText/${instanceName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-    body: JSON.stringify({ number: phone, text: assistantMessage }),
-  });
-
-  const evoData = await evoResponse.json();
-  const sentMsgId = evoData?.key?.id || null;
-
-  await supabase.from('lead_messages').insert({
-    lead_id: leadId, message_text: assistantMessage, is_from_me: true,
-    whatsapp_message_id: sentMsgId, instance_name: instanceName,
-  });
+  await sendChunkedMessages(evolutionUrl, evolutionApiKey, instanceName, phone, assistantMessage, supabase, leadId);
 
   return new Response(JSON.stringify({ success: true, message: 'Legacy AI response sent' }), {
     headers: { 'Content-Type': 'application/json' }, status: 200,
