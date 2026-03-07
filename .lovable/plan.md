@@ -1,81 +1,177 @@
 
 
-## Plan: Message Chunking with Typing Simulation
+# Plano: Sistema Completo de Conversas com Notificações e Sons
 
-### What changes
+## Resumo do Problema
 
-**Single file**: `supabase/functions/ai-webhook/index.ts`
+O sistema de conversas precisa de melhorias para funcionar como o WhatsApp:
+1. As mensagens não estão aparecendo corretamente no histórico
+2. Não há indicador de mensagens não lidas
+3. Não há som quando chega uma mensagem nova
 
-Both the new agent flow (lines 410-436) and the legacy flow (lines 501-518) currently send one big message. We need to replace both with a `sendChunkedMessages` helper that:
+---
 
-1. **Splits the AI response** into short chunks (~200 chars max), breaking on sentence boundaries (`. `, `! `, `? `, `\n`). Links, CTAs, and questions get their own separate message.
+## Solução Proposta
 
-2. **For each chunk**:
-   - Calls Evolution API's **presence endpoint** (`POST /chat/updatePresence/{instance}`) with `{ number, presence: "composing" }` to show "typing..." indicator
-   - Waits a **random delay between 2-4 seconds** (proportional to chunk length, simulating real typing speed)
-   - Sends the chunk via `sendText`
-   - Waits **1-2 seconds** between chunks (breathing pause)
+### 1. Corrigir Exibição de Mensagens
 
-3. **Saves each chunk as a separate `lead_messages` row** so the frontend displays them individually, matching what the lead sees on WhatsApp.
+**Diagnóstico:** O banco de dados está funcionando corretamente (confirmado via query direta). O problema pode estar na query de RLS ou na forma como os dados são carregados.
 
-### Helper function (new)
+**Mudanças:**
+- Adicionar logs detalhados para debug no hook `useLeadChat`
+- Verificar se a política RLS está bloqueando acesso
+- Garantir que o `lead_id` passado está correto
+
+---
+
+### 2. Sistema de Mensagens Não Lidas
+
+**Arquitetura:**
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    BANCO DE DADOS                            │
+├─────────────────────────────────────────────────────────────┤
+│  leads                                                       │
+│  └── unread_count (INTEGER, default 0)                      │
+│                                                              │
+│  lead_messages                                               │
+│  └── is_read (BOOLEAN, default false para is_from_me=false) │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Novos Campos no Banco:**
+- `leads.unread_count` (INTEGER) - Contador de mensagens não lidas
+- `lead_messages.is_read` (BOOLEAN) - Se a mensagem foi lida
+
+**Trigger Automático:**
+- Quando uma nova mensagem chega (`is_from_me = false`), incrementa `unread_count`
+- Quando o usuário abre a conversa, zera `unread_count` e marca mensagens como lidas
+
+---
+
+### 3. Sistema de Sons de Notificação
+
+**5 Sons Disponíveis:**
+1. `notification-1.mp3` - Som clássico (tipo WhatsApp)
+2. `notification-2.mp3` - Som suave
+3. `notification-3.mp3` - Som moderno
+4. `notification-4.mp3` - Som discreto
+5. `notification-5.mp3` - Som alegre
+
+**Configuração:**
+- Nova opção em Configurações para escolher o som
+- Opção para desativar sons
+- Armazenado em `localStorage` para persistência
+
+---
+
+## Arquivos a Serem Criados/Modificados
+
+### Novos Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/hooks/useNotificationSound.ts` | Hook para reproduzir sons de notificação |
+| `src/hooks/useUnreadMessages.ts` | Hook global para gerenciar contagem de não lidas |
+| `src/components/settings/NotificationSoundSettings.tsx` | Componente para escolher som |
+| `public/sounds/notification-1.mp3` | Som de notificação 1 |
+| `public/sounds/notification-2.mp3` | Som de notificação 2 |
+| `public/sounds/notification-3.mp3` | Som de notificação 3 |
+| `public/sounds/notification-4.mp3` | Som de notificação 4 |
+| `public/sounds/notification-5.mp3` | Som de notificação 5 |
+
+### Arquivos Modificados
+
+| Arquivo | Mudanças |
+|---------|----------|
+| `src/hooks/useLeadChat.ts` | Adicionar lógica para marcar mensagens como lidas ao abrir conversa |
+| `src/components/conversations/ConversationList.tsx` | Adicionar badge de não lidas ao lado do nome do contato |
+| `src/pages/Conversations.tsx` | Integrar hook de sons e atualizar contagem ao abrir conversa |
+| `src/pages/Settings.tsx` | Adicionar seção de configuração de sons |
+
+---
+
+## Detalhes Técnicos
+
+### Hook useNotificationSound
 
 ```typescript
-async function sendChunkedMessages(
-  evolutionUrl: string, evolutionApiKey: string, 
-  instanceName: string, phone: string, 
-  fullText: string, supabase: any, leadId: string
-) {
-  const chunks = splitIntoChunks(fullText, 200);
+export const useNotificationSound = () => {
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [selectedSound, setSelectedSound] = useState('notification-1');
   
-  for (const chunk of chunks) {
-    // 1. Send "typing..." presence
-    await fetch(`${evolutionUrl}/chat/updatePresence/${instanceName}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-      body: JSON.stringify({ number: phone, presence: 'composing' }),
-    });
-    
-    // 2. Typing delay (2-4s based on length)
-    await delay(2000 + Math.random() * 2000 + chunk.length * 15);
-    
-    // 3. Send chunk
-    const evoRes = await fetch(`${evolutionUrl}/message/sendText/${instanceName}`, { ... });
-    const evoData = await evoRes.json();
-    
-    // 4. Save to DB
-    await supabase.from('lead_messages').insert({ lead_id, message_text: chunk, is_from_me: true, ... });
-    
-    // 5. Pause between chunks (1-2s)
-    if (notLastChunk) await delay(1000 + Math.random() * 1000);
-  }
-}
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    const audio = new Audio(`/sounds/${selectedSound}.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(console.error);
+  }, [soundEnabled, selectedSound]);
+  
+  return { playNotificationSound, soundEnabled, setSoundEnabled, selectedSound, setSelectedSound };
+};
 ```
 
-### Chunk splitting logic
+### Modificação na ConversationList
 
 ```typescript
-function splitIntoChunks(text: string, maxLen: number): string[] {
-  // Split on double newlines first, then sentences
-  // Keep URLs/links as standalone chunks
-  // Keep questions (ending with ?) as standalone chunks
-  // Each chunk <= 200 chars
-}
+// Dentro do componente de cada lead na lista
+<div className="relative">
+  <Avatar>...</Avatar>
+  {lead.unread_count > 0 && (
+    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+      {lead.unread_count > 9 ? '9+' : lead.unread_count}
+    </span>
+  )}
+</div>
 ```
 
-### Also update `agentLogic.ts` system prompt
+### Migração SQL
 
-Add to the system prompt instructions (line ~91):
+```sql
+-- Adicionar campo unread_count na tabela leads
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;
+
+-- Adicionar campo is_read na tabela lead_messages
+ALTER TABLE lead_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
+
+-- Trigger para incrementar contador quando mensagem chega
+CREATE OR REPLACE FUNCTION increment_unread_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_from_me = false THEN
+    UPDATE leads SET unread_count = unread_count + 1 WHERE id = NEW.lead_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_new_message_increment_unread
+AFTER INSERT ON lead_messages
+FOR EACH ROW EXECUTE FUNCTION increment_unread_count();
 ```
-- Responda de forma curta e natural, como uma conversa real de WhatsApp.
-- Use frases curtas. Separe ideias em parágrafos com quebra de linha.
-- Nunca envie blocos longos de texto.
-- Links e perguntas devem estar em linhas separadas.
-```
 
-This instructs the LLM to already produce shorter, more conversational text, making the chunking work even better.
+---
 
-### Files to modify
-- `supabase/functions/ai-webhook/index.ts` — Add `splitIntoChunks` and `sendChunkedMessages`, replace single-send in both flows
-- `supabase/functions/ai-webhook/agentLogic.ts` — Add conversational style instructions to system prompt
+## Fluxo de Funcionamento
+
+1. **Mensagem chega via webhook** → Salva em `lead_messages` com `is_from_me = false`
+2. **Trigger dispara** → Incrementa `unread_count` no lead
+3. **Realtime propaga** → Frontend recebe a nova mensagem e o contador atualizado
+4. **Som toca** → Hook `useNotificationSound` reproduz o som selecionado
+5. **Badge aparece** → Lista de conversas mostra o número de não lidas
+6. **Usuário abre conversa** → `unread_count` é zerado e mensagens marcadas como lidas
+
+---
+
+## Ordem de Implementação
+
+1. Adicionar campos no banco de dados (migração SQL)
+2. Criar arquivos de som no `/public/sounds/`
+3. Criar hook `useNotificationSound`
+4. Criar hook `useUnreadMessages`
+5. Atualizar `ConversationList` com badge de não lidas
+6. Atualizar `Conversations.tsx` para tocar som e zerar contador
+7. Criar componente de configuração de sons
+8. Atualizar página de Settings
 
